@@ -1,6 +1,5 @@
 from music_genre_sommelier.utils.enum.common import CommonStatus
 
-
 class AudioFile:
     def __init__(self, id: int, file_path: str, upload_status: CommonStatus = CommonStatus.PENDING, upload_error: str | None = None):
         self.id = id
