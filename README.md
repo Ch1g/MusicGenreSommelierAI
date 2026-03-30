@@ -27,16 +27,12 @@ classDiagram
 
     class AudioFile {
         +upload()
-        +get_path()
-        -_set_path()
         -_record_failure()
         -_record_success()
         -_set_status()
     }
 
     class SpectrogramFile {
-        +get_path()
-        +set_path()
         <<data record>>
     }
 
@@ -59,8 +55,8 @@ classDiagram
     }
 
     class Transaction {
-        +check_funds(user_id, amount)
-        +get_balance(user_id)
+        +check_funds(user_id, amount) $
+        +get_balance(user_id) $
         +approve()
         +cancel()
         +fail_insufficient_funds()

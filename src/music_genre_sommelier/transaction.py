@@ -11,8 +11,11 @@ class Transaction:
     def approve(self):
         self._set_status(TransactionStatus.SUCCESS)
 
-    def reject(self, status: TransactionStatus.FAIL_CANCELED | TransactionStatus.FAIL_INSUFFICIENT_FUNDS):
-        self._set_status(status)
+    def cancel(self):
+        self._set_status(TransactionStatus.FAIL_CANCELED)
+
+    def fail_insufficient_funds(self):
+        self._set_status(TransactionStatus.FAIL_INSUFFICIENT_FUNDS)
 
     def _set_status(self, status: TransactionStatus) -> None:
         self.status = status
@@ -21,6 +24,7 @@ class Transaction:
     def check_funds(user_id: int, amount: float) -> bool:
         return Transaction.get_balance(user_id) >= amount
     
+    # TODO: Реализовать после подключения к БД
     @staticmethod
     def get_balance(user_id: int) -> float:
-        return 0  # TODO: Реализовать после подключения к БД
+        return 0  
