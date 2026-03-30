@@ -27,15 +27,23 @@ classDiagram
 
     class AudioFile {
         +upload()
+        +get_path()
+        -_set_path()
+        -_record_failure()
+        -_record_success()
+        -_set_status()
     }
 
     class SpectrogramFile {
+        +get_path()
+        +set_path()
         <<data record>>
     }
 
     class AudioSpectrogram {
         +convert()
-        +get_spectrogram()
+        -_record_failure()
+        -_record_success()
         -_set_status()
     }
 
@@ -45,6 +53,8 @@ classDiagram
 
     class MLTask {
         +process()
+        -_record_failure()
+        -_record_success()
         -_set_status()
     }
 
@@ -52,25 +62,24 @@ classDiagram
         +check_funds(user_id, amount)
         +get_balance(user_id)
         +approve()
-        +reject(status)
+        +cancel()
+        +fail_insufficient_funds()
         -_set_status()
     }
 
     User <|-- CommonUser
     User <|-- AdminUser
 
-    AudioSpectrogram --> AudioFile : reads
-    AudioSpectrogram --> SpectrogramFile : produces
+    AudioSpectrogram --> AudioFile : читает
+    AudioSpectrogram --> SpectrogramFile : создаёт
 
-    MLTask --> AudioSpectrogram : precondition
+    MLTask --> AudioSpectrogram
     MLTask --> MLModel : predict()
 
     MLTask ..> User : user_id
     Transaction ..> User : user_id
     Transaction ..> MLTask : ml_task_id
 ```
-
-> Замечание: `SpectrogramFile` — только запись о файле, без доменной логики (**RULE-05**, `AGENTS.md`). У `AudioSpectrogram`, `MLTask` и `Transaction` префикс `-` в диаграмме — **private** (UML): `_set_status` централизует смену поля **`status`** в БД (у `AudioSpectrogram`, `MLTask` и `Transaction` — разные таблицы; имена колонок совпадают там, где это уместно); вызывать снаружи класса не следует (см. `AGENTS.md`).
 
 ### Структура БД
 
