@@ -1,0 +1,9 @@
+# Agentic / Cursor agent documentation (exclude from version control for now)
+AGENTS.md
+docs/
+.cursor/
+
+# Python bytecode
+__pycache__/
+*.py[cod]
+*$py.class
