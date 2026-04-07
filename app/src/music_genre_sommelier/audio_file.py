@@ -1,15 +1,23 @@
+from io import FileIO
 from music_genre_sommelier.utils.enum.common import CommonStatus
+from sqlmodel import SQLModel, Field
+from datetime import datetime
 
-class AudioFile:
-    def __init__(self, id: int, file_path: str, upload_status: CommonStatus = CommonStatus.PENDING, upload_error: str | None = None):
-        self.id = id
-        self.file_path = file_path
-        self.upload_status = upload_status
-        self.upload_error = upload_error
+class AudioFile(SQLModel, table=True):
+    id: int = Field(default=None, primary_key=True)
+    file_path: str = Field(index=True)
+    upload_status: CommonStatus = Field(default=CommonStatus.PENDING)
+    upload_error: str | None = Field(default=None)
+    created_at: datetime = Field(default_factory=datetime.now)
+    updated_at: datetime = Field(default_factory=datetime.now)
 
-    # TODO: Реализовать позже
-    def upload(self):
-        return 
+    # TODO: Реализовать загрузку файла 
+    def upload(self, file: FileIO):
+        try: 
+            self.file_path = 'dummy_file_path'
+            self._record_success()
+        except Exception as e:
+            self._record_failure(str(e))
 
     def _record_failure(self, error: str):
         self.upload_error = error

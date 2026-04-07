@@ -1,18 +1,22 @@
 from music_genre_sommelier.utils.enum.common import CommonStatus
+from sqlmodel import SQLModel, Field
+from datetime import datetime
 
-class MLTask:
-    def __init__(self, id: int, audio_spectrogram_id: int, user_id: int, model_id: int, status: CommonStatus = CommonStatus.PENDING, result: dict | None = None, error: str | None = None):
-        self.id = id
-        self.audio_spectrogram_id = audio_spectrogram_id
-        self.user_id = user_id
-        self.model_id = model_id
-        self.status = status
-        self.result = result
-        self.error = error
+class MLTask(SQLModel, table=True):
+    id: int = Field(default=None, primary_key=True)
+    audio_spectrogram_id: int = Field(index=True, foreign_key="audio_spectrogram.id")
+    user_id: int = Field(index=True, foreign_key="user.id")
+    model_id: int = Field(index=True, foreign_key="ml_model.id")
+    status: CommonStatus = Field(default=CommonStatus.PENDING)
+    result: dict | None = Field(default=None)
+    error: str | None = Field(default=None)
+    created_at: datetime = Field(default_factory=datetime.now)
+    updated_at: datetime = Field(default_factory=datetime.now)
 
     # TODO: Реализовать позже
     def process(self): 
-        return
+        self.audio_spectrogram
+
     
     def _record_failure(self, error: str):
         self.error = error

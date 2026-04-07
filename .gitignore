@@ -3,6 +3,9 @@ AGENTS.md
 docs/
 .cursor/
 
+# Local virtualenv (created under app/)
+app/venv/
+
 # Python bytecode
 __pycache__/
 *.py[cod]
