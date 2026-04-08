@@ -10,6 +10,10 @@
 ├── README.md
 ├── docker-compose.yml
 ├── app/                 # образ приложения: Python, app.py, зависимости
+│   └── src/music_genre_sommelier/
+│       ├── models/      # модели данных (SQLModel)
+│       ├── services/    # сервисный слой (бизнес-логика)
+│       └── utils/       # утилиты (БД, enum'ы)
 ├── db/                  # образ PostgreSQL
 ├── mb/                  # образ RabbitMQ (management)
 ├── web-proxy/           # образ nginx (reverse proxy)
@@ -42,10 +46,9 @@ classDiagram
     }
 
     class AudioFile {
-        +upload()
-        -_record_failure()
-        -_record_success()
-        -_set_status()
+        +record_failure(error)
+        +record_success()
+        +set_status(status)
     }
 
     class SpectrogramFile {
@@ -53,10 +56,9 @@ classDiagram
     }
 
     class AudioSpectrogram {
-        +convert()
-        -_record_failure()
-        -_record_success()
-        -_set_status()
+        +record_failure(error)
+        +record_success()
+        +set_status(status)
     }
 
     class MLModel {
@@ -64,10 +66,9 @@ classDiagram
     }
 
     class MLTask {
-        +process()
-        -_record_failure()
-        -_record_success()
-        -_set_status()
+        +record_failure(error)
+        +record_success(result)
+        +set_status(status)
     }
 
     class Transaction {
@@ -76,17 +77,26 @@ classDiagram
         +approve()
         +cancel()
         +fail_insufficient_funds()
-        -_set_status()
+    }
+
+    class AudioSpectrogramService {
+        +convert(audio_spectrogram)
+    }
+
+    class MLTaskService {
+        +process(ml_task)
     }
 
     User <|-- CommonUser
     User <|-- AdminUser
 
-    AudioSpectrogram --> AudioFile : читает
-    AudioSpectrogram --> SpectrogramFile : создаёт
+    AudioSpectrogramService --> AudioSpectrogram : обновляет статус
+    AudioSpectrogramService --> AudioFile : читает
+    AudioSpectrogramService --> SpectrogramFile : создаёт
 
-    MLTask --> AudioSpectrogram
-    MLTask --> MLModel : predict()
+    MLTaskService --> MLTask : обновляет статус
+    MLTaskService --> AudioSpectrogram : читает
+    MLTaskService --> MLModel : predict()
 
     MLTask ..> User : user_id
     Transaction ..> User : user_id
@@ -148,6 +158,7 @@ erDiagram
         int audio_spectrogram_id FK
         int user_id FK
         int model_id FK
+        int ml_task_id FK
         enum status
         json result "nullable"
         varchar error "nullable"
@@ -158,7 +169,6 @@ erDiagram
     Transaction {
         int id PK
         int user_id FK
-        int ml_task_id FK "nullable"
         int amount
         enum status
         datetime created_at
@@ -188,4 +198,5 @@ erDiagram
 ### Использование ИИ-агентов и GPT
 
 - Домашнее задание 1: Агенты не использовались при проектировании, GPT использовался для однократного ревью законченного черновика сущностей (данные и классы). Агент использовался для отрисовки Mermaid диаграм и ведения агентскной документации (личные нужды на случай желания продолжать поддерживать проект).
-- Домашнее задание 2: Агент использовался для создания блока [Структура проекта](#структура-проекта), GPT использовался для поиска причины несохранения данных после перезапуска контейнера PostgreSQL (образ 18-й версии использует по умолчанию этот путь /var/lib/postgresql/18/docker)  
+- Домашнее задание 2: Агент использовался для создания блока [Структура проекта](#структура-проекта), GPT использовался для поиска причины несохранения данных после перезапуска контейнера PostgreSQL (образ 18-й версии использует по умолчанию этот путь /var/lib/postgresql/18/docker)
+- Домашнее задание 3: Агент использовался для рефакторинга моделей данных — вынос сервисной логики в отдельный слой `services/`, перенос моделей в `models/`, публикация методов записи статуса (`record_success`, `record_failure`, `set_status`) для использования сервисами.  

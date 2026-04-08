@@ -1,6 +1,6 @@
 from sqlmodel import Field
 
-from music_genre_sommelier.user import User
+from music_genre_sommelier.models.user import User
 
 class AdminUser(User):
     is_admin: bool = Field(default=True)
