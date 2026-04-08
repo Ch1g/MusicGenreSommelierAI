@@ -1,0 +1,7 @@
+sqlmodel==0.0.38
+psycopg[binary]>=3.1
+librosa>=0.10.2
+numpy>=1.26.4
+matplotlib>=3.9.2
+soundfile>=0.12.1
+# transformers>=5.5.0

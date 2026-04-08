@@ -1,10 +1,9 @@
-# TODO: Заглушка
-import time
+from music_genre_sommelier.utils.database.seed import seed
 
 def main():
-    print("Hello, World!")
-    time.sleep(1000)
-    print("Goodbye, World!")
+    print("Seeding")
+    seed()
+    print("Seed complete")
 
 if __name__ == "__main__":
     main()
