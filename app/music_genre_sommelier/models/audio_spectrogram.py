@@ -25,10 +25,10 @@ class AudioSpectrogram(SQLModel, table=True):
 
     def record_failure(self, error: str):
         self.error = error
-        self.set_status(CommonStatus.FAILURE)
+        self._set_status(CommonStatus.FAILURE)
 
     def record_success(self):
-        self.set_status(CommonStatus.SUCCESS)
+        self._set_status(CommonStatus.SUCCESS)
 
-    def set_status(self, status: CommonStatus):
+    def _set_status(self, status: CommonStatus):
         self.status = status

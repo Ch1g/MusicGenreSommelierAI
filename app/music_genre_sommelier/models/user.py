@@ -17,6 +17,3 @@ class User(SQLModel, table=True):
 
     def get_balance(self) -> float:
         raise NotImplementedError("Subclasses must implement this method")
-
-    def touch_updated_at(self) -> None:
-        self.updated_at = datetime.now()

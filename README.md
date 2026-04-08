@@ -48,7 +48,7 @@ classDiagram
     class AudioFile {
         +record_failure(error)
         +record_success()
-        +set_status(status)
+        -_set_status(status)
     }
 
     class SpectrogramFile {
@@ -58,49 +58,38 @@ classDiagram
     class AudioSpectrogram {
         +record_failure(error)
         +record_success()
-        +set_status(status)
+        -_set_status(status)
     }
 
     class MLModel {
-        +predict(spectrogram_path)
+        <<data record>>
     }
 
     class MLTask {
         +record_failure(error)
         +record_success(result)
-        +set_status(status)
+        -_set_status(status)
     }
 
     class Transaction {
-        +check_funds(user_id, amount) $
+        +check_funds()
         +get_balance(user_id) $
         +approve()
         +cancel()
         +fail_insufficient_funds()
-    }
-
-    class AudioSpectrogramService {
-        +convert(audio_spectrogram)
-    }
-
-    class MLTaskService {
-        +process(ml_task)
+        _is_sufficient()
     }
 
     User <|-- CommonUser
     User <|-- AdminUser
 
-    AudioSpectrogramService --> AudioSpectrogram : обновляет статус
-    AudioSpectrogramService --> AudioFile : читает
-    AudioSpectrogramService --> SpectrogramFile : создаёт
-
-    MLTaskService --> MLTask : обновляет статус
-    MLTaskService --> AudioSpectrogram : читает
-    MLTaskService --> MLModel : predict()
-
     MLTask ..> User : user_id
+    MLTask ..> Transaction : transaction_id
+    MLTask ..> MLModel : ml_model_id
+    MLTask ..> AudioSpectrogram : audio_spectrogram_id
     Transaction ..> User : user_id
-    Transaction ..> MLTask : ml_task_id
+    AudioSpectrogram ..> AudioFile : audio_file_id
+    AudioSpectrogram ..> SpectrogramFile : spectrogram_file_id
 ```
 
 ### Структура БД
@@ -156,8 +145,8 @@ erDiagram
     MLTask {
         int id PK
         int audio_spectrogram_id FK
-        int user_id FK
-        int model_id FK
+        int transaction_id FK
+        int ml_model_id FK
         int ml_task_id FK
         enum status
         json result "nullable"

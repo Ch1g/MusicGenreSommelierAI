@@ -12,6 +12,3 @@ class MLModel(SQLModel, table=True):
         default_factory=datetime.now,
         sa_column=Column(DateTime, onupdate=func.now())
     )
-
-    def touch_updated_at(self) -> None:
-        self.updated_at = datetime.now()
