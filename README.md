@@ -2,23 +2,24 @@
 
 ## Структура репозитория
 
-Один уровень вложенности (документация и доменный Python — в `docs/` и `app/src/`).
+Один уровень вложенности (документация и доменный Python — в `docs/` и `app/`).
 
 ```text
 .
-├── AGENTS.md # (см .gitignore)
+├── AGENTS.md
 ├── README.md
 ├── docker-compose.yml
 ├── app/                 # образ приложения: Python, app.py, зависимости
-│   └── src/music_genre_sommelier/
+│   └── music_genre_sommelier/
 │       ├── models/      # модели данных (SQLModel)
 │       ├── services/    # сервисный слой (бизнес-логика)
 │       └── utils/       # утилиты (БД, enum'ы)
 ├── db/                  # образ PostgreSQL
-├── mb/                  # образ RabbitMQ (management)
 ├── web-proxy/           # образ nginx (reverse proxy)
-└── docs/                # architecture.md, stack.md, drift-check.md, decisions.md (см. .gitignore)
+└── docs/                # architecture.md, stack.md, drift-check.md, decisions.md
 ```
+
+Сервис брокера сообщений задаётся в `docker-compose.yml` как `message-broker` (образ RabbitMQ), отдельной папки `mb/` в репозитории нет.
 
 ## Описание
 
@@ -83,7 +84,6 @@ classDiagram
     User <|-- CommonUser
     User <|-- AdminUser
 
-    MLTask ..> User : user_id
     MLTask ..> Transaction : transaction_id
     MLTask ..> MLModel : ml_model_id
     MLTask ..> AudioSpectrogram : audio_spectrogram_id
@@ -147,7 +147,6 @@ erDiagram
         int audio_spectrogram_id FK
         int transaction_id FK
         int ml_model_id FK
-        int ml_task_id FK
         enum status
         json result "nullable"
         varchar error "nullable"
@@ -164,9 +163,8 @@ erDiagram
         datetime updated_at
     }
 
-    User ||--o{ MLTask : ""
-    User ||--o{ Transaction : ""
-    MLTask ||--o{ Transaction : "ml_task_id"
+    User ||--o{ Transaction : "user_id"
+    MLTask }o--|| Transaction : "transaction_id"
     MLModel ||--o{ MLTask : ""
     AudioFile ||--o{ AudioSpectrogram : ""
     AudioSpectrogram }o--|| SpectrogramFile : "spectrogram_file_id"
@@ -187,5 +185,5 @@ erDiagram
 ### Использование ИИ-агентов и GPT
 
 - Домашнее задание 1: Агенты не использовались при проектировании, GPT использовался для однократного ревью законченного черновика сущностей (данные и классы). Агент использовался для отрисовки Mermaid диаграм и ведения агентской документации (личные нужды на случай желания продолжать поддерживать проект).
-- Домашнее задание 2: Агент использовался для создания блока [Структура проекта](#структура-проекта), GPT использовался для поиска причины несохранения данных после перезапуска контейнера PostgreSQL (образ 18-й версии использует по умолчанию этот путь /var/lib/postgresql/18/docker)
+- Домашнее задание 2: Агент использовался для создания блока [Структура репозитория](#структура-репозитория), GPT использовался для поиска причины несохранения данных после перезапуска контейнера PostgreSQL (образ 18-й версии использует по умолчанию этот путь /var/lib/postgresql/18/docker)
 - Домашнее задание 3: Агент использовался для рефакторинга моделей данных — вынос готовой сервисной логики в отдельный слой `services/`, перенос файлов моделей в `models/`.  

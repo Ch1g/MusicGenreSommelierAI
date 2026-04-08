@@ -1,6 +1,4 @@
-# Agentic / Cursor agent documentation (exclude from version control for now)
-AGENTS.md
-docs/
+# Editor / local tooling
 .cursor/
 
 # Local virtualenv (created under app/)
