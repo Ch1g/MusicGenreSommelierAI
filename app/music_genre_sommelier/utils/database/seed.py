@@ -119,6 +119,7 @@ def seed_database() -> None:
         session.commit()
 
 
-def seed() -> None:
+def run() -> None:
     create_tables()
     seed_database()
+    print("Seeds done.")
