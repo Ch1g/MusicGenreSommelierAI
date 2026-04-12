@@ -6,11 +6,12 @@
 
 ```text
 .
-├── AGENTS.md
+├── CLAUDE.md
 ├── README.md
 ├── docker-compose.yml
-├── app/                 # образ приложения: Python, app.py, зависимости
+├── app/                 # образ приложения: Python, зависимости
 │   └── music_genre_sommelier/
+│       ├── controllers/ # REST-контроллеры (FastAPI)
 │       ├── models/      # модели данных (SQLModel)
 │       ├── services/    # сервисный слой (бизнес-логика)
 │       └── utils/       # утилиты (БД, enum'ы)
@@ -47,9 +48,6 @@ classDiagram
     }
 
     class AudioFile {
-        +record_failure(error)
-        +record_success()
-        -_set_status(status)
     }
 
     class SpectrogramFile {
@@ -110,9 +108,8 @@ erDiagram
 
     AudioFile {
         int id PK
+        int user_id FK
         varchar file_path
-        enum upload_status
-        text upload_error "nullable"
         datetime created_at
         datetime updated_at
     }
@@ -137,7 +134,9 @@ erDiagram
     MLModel {
         int id PK
         varchar model_path
-        int prediction_cost
+        float prediction_cost
+        int input_width
+        int input_height
         datetime created_at
         datetime updated_at
     }
@@ -164,6 +163,7 @@ erDiagram
     }
 
     User ||--o{ Transaction : "user_id"
+    User ||--o{ AudioFile : "user_id"
     MLTask }o--|| Transaction : "transaction_id"
     MLModel ||--o{ MLTask : ""
     AudioFile ||--o{ AudioSpectrogram : ""
@@ -175,7 +175,6 @@ erDiagram
 
 | Сущность | Поле | Допустимые значения |
 |----------|------|---------------------|
-| `AudioFile` | `upload_status` | `pending`, `success`, `failure` |
 | `AudioSpectrogram` | `status` | `pending`, `success`, `failure` |
 | `MLTask` | `status` | `pending`, `success`, `failure` |
 | `Transaction` | `status` | `pending`, `fail_insufficient_funds`, `fail_canceled`, `success` |
@@ -186,4 +185,5 @@ erDiagram
 
 - Домашнее задание 1: Агенты не использовались при проектировании, GPT использовался для однократного ревью законченного черновика сущностей (данные и классы). Агент использовался для отрисовки Mermaid диаграм и ведения агентской документации (личные нужды на случай желания продолжать поддерживать проект).
 - Домашнее задание 2: Агент использовался для создания блока [Структура репозитория](#структура-репозитория), GPT использовался для поиска причины несохранения данных после перезапуска контейнера PostgreSQL (образ 18-й версии использует по умолчанию этот путь /var/lib/postgresql/18/docker)
-- Домашнее задание 3: Агент использовался для рефакторинга моделей данных — вынос готовой сервисной логики в отдельный слой `services/`, перенос файлов моделей в `models/`.  
+- Домашнее задание 3: Агент использовался для рефакторинга моделей данных — вынос готовой сервисной логики в отдельный слой `services/`, перенос файлов моделей в `models/`.
+- Домашнее задание 4: Агент использовался для миграции агентской документации с `AGENTS.md` на `CLAUDE.md`, рефакторинга модели `AudioFile` (удалены поля статуса загрузки, добавлен `user_id`), устранения связанности `MLTask` с `Transaction` (вызовы `approve`/`cancel` вынесены в `MLTaskService`), изменения конвертаци аудио в спектрограмму

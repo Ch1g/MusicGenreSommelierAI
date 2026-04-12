@@ -2,23 +2,11 @@ import hashlib
 import hmac
 from sqlmodel import Session, select
 
+from music_genre_sommelier.utils.errors.errors import AuthenticationError, EmailAlreadyExistsError, ValidationError
 from music_genre_sommelier.models import User
 
 
 PASSWORD_SECRET_KEY = "music-sommelier-secret-2026"
-
-
-class AuthError(Exception):
-    status_code: int
-
-class ValidationError(AuthError):
-    status_code = 422
-
-class EmailAlreadyExistsError(AuthError):
-    status_code = 409
-
-class AuthenticationError(AuthError):
-    status_code = 401
 
 
 class RegistrationService:

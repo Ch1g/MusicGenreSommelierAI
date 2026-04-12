@@ -1,21 +1,7 @@
 from music_genre_sommelier.models.user import User
-from music_genre_sommelier.models.admin_user import AdminUser
-from music_genre_sommelier.models.common_user import CommonUser
 from music_genre_sommelier.models.transaction import Transaction
 from music_genre_sommelier.models.audio_file import AudioFile
 from music_genre_sommelier.models.spectrogram_file import SpectrogramFile
 from music_genre_sommelier.models.audio_spectrogram import AudioSpectrogram
 from music_genre_sommelier.models.ml_model import MLModel
 from music_genre_sommelier.models.ml_task import MLTask
-
-__all__ = [
-    "User",
-    "AdminUser", 
-    "CommonUser",
-    "Transaction",
-    "AudioFile",
-    "SpectrogramFile",
-    "AudioSpectrogram",
-    "MLModel",
-    "MLTask",
-]

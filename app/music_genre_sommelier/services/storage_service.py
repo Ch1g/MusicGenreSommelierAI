@@ -36,3 +36,6 @@ class StorageService:
             target_path.write_bytes(file.read())
 
         return target_path
+
+    def delete(self, file_path: str | Path) -> None:
+        Path(file_path).unlink(missing_ok=True)
