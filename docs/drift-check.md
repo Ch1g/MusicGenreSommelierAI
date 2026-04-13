@@ -1,16 +1,18 @@
 # Drift check
 
-Repeatable checks to confirm implementation still matches **[`AGENTS.md`](../AGENTS.md)** and this repo’s layout. Run from repo root.
+Repeatable checks to confirm implementation still matches **[`CLAUDE.md`](../CLAUDE.md)** and this repo’s layout. Run from repo root.
 
 ## 1. Package layout
 
 - [ ] Domain tables live under `app/music_genre_sommelier/models/` (not repo-root `src/`).
 - [ ] Services live under `app/music_genre_sommelier/services/`.
+- [ ] Controllers live under `app/music_genre_sommelier/controllers/`.
 - [ ] Enums in `app/music_genre_sommelier/utils/enum/`; DB engine in `app/music_genre_sommelier/utils/database/`.
 
 ```bash
 test -d app/music_genre_sommelier/models
 test -d app/music_genre_sommelier/services
+test -d app/music_genre_sommelier/controllers
 ```
 
 ## 2. Orchestration boundaries
@@ -60,11 +62,14 @@ rg -A3 "def get_balance" app/music_genre_sommelier/models/admin_user.py
 
 ## 7. Settlement ordering (spot-check)
 
-- [ ] **`approve`** is only invoked from **`MLTask.record_success`** (or equivalent); **`MLTaskService`** calls **`record_success`** after **`_perform_prediction`**.
+- [ ] **`MLTask.record_success`** / **`record_failure`** do **not** call `approve` or `cancel` — settlement is `MLTaskService`'s responsibility.
+- [ ] **`MLTaskService.process`** calls `transaction.approve()` after a successful prediction and `transaction.cancel()` on generic failure.
 
 ```bash
-rg "approve" app/music_genre_sommelier/models/ml_task.py
-rg "record_success" app/music_genre_sommelier/services/ml_task_service.py
+rg "approve\|cancel" app/music_genre_sommelier/models/ml_task.py && echo "FAIL: settlement in MLTask.record_*" || true
+rg "approve\|cancel" app/music_genre_sommelier/services/ml_task_service.py
 ```
+
+(Expect no matches in `ml_task.py`; expect `approve` and `cancel` in `ml_task_service.py`.)
 
 Update this file when adding modules, renaming paths, or changing dependency edges so grep targets stay accurate.
