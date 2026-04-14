@@ -1,8 +1,76 @@
-# Music Genre Sommelier AI — Agent Contract
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+# Music Genre Sommelier AI — Architectural Contract
 
 This document is the **architectural contract** for the Music Genre Sommelier AI system. Implementation (Python, REST, OOP) must conform to it. The product accepts user-uploaded audio, converts it to spectrograms, classifies genre via a computer-vision model, and gates access by debiting user balance only on successful inference.
 
 **Docs maintenance:** Any new domain module, renamed file, or dependency edge must be reflected here, in `docs/architecture.md`, and in `docs/drift-check.md` (grep paths and module lists) before the change is considered complete. **Platform stack** (Compose, nginx, Postgres, RabbitMQ, Python operations) is documented in **`docs/stack.md`**; related ADRs live in **`docs/decisions.md`**.
+
+---
+
+## Development
+
+### Running the stack
+
+```bash
+docker compose up          # start all services (nginx, app, RabbitMQ, PostgreSQL)
+docker compose up app      # rebuild and start app only
+```
+
+### Running locally (outside Docker)
+
+```bash
+cd app
+PYTHONPATH=. fastapi dev music_genre_sommelier/controllers/main.py --host 0.0.0.0 --port 8080
+```
+
+Requires a running PostgreSQL instance with credentials matching `.db.env` (see file at repo root for defaults).
+
+DB schema seeding runs automatically on container start via `entrypoint.sh`. To run it manually:
+
+```bash
+cd app && PYTHONPATH=. python -m music_genre_sommelier.utils.database.seed --flush
+```
+
+### Dependencies
+
+No `pyproject.toml` — dependencies are in `app/requirements.txt`.
+
+```bash
+pip install -r app/requirements.txt
+```
+
+### Linting and type checking
+
+No linter is configured in the repo. Apply per global standards:
+
+```bash
+ruff check app/ && ruff format app/
+ty check app/
+```
+
+### Tests
+
+No test suite exists yet. When adding tests, place them in `tests/` mirroring package structure and run:
+
+```bash
+cd app && PYTHONPATH=. pytest -q
+```
+
+### Environment variables
+
+`.db.env` at repo root is bind-mounted into both `app` and `database` containers. Contains
+`POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB`, `POSTGRES_HOST`, `POSTGRES_PORT`.
+
+---
+
+## Known stubs (not yet implemented)
+
+- **JWT tokens** — `auth.py` returns `"placeholder"` for `jwt_token` in both signup and signin responses.
+- **`MLTaskService._perform_prediction`** — inference logic is not implemented; ML model weights and
+  the CV prediction pipeline are pending.
 
 ---
 
@@ -29,6 +97,12 @@ Python package **`music_genre_sommelier`** lives under **`app/music_genre_sommel
 | Schema seed / bootstrap | `app/music_genre_sommelier/utils/database/seed.py` |
 | `CommonStatus` (shared row statuses) | `app/music_genre_sommelier/utils/enum/common.py` |
 | `TransactionStatus` | `app/music_genre_sommelier/utils/enum/transaction.py` |
+| `AppError` hierarchy | `app/music_genre_sommelier/utils/errors/errors.py` |
+| Auth endpoints (signup / signin) | `app/music_genre_sommelier/controllers/auth.py` |
+| Audio upload / list / delete | `app/music_genre_sommelier/controllers/audio.py` |
+| Inference endpoint | `app/music_genre_sommelier/controllers/inference.py` |
+| Transaction / balance endpoints | `app/music_genre_sommelier/controllers/transactions.py` |
+| FastAPI app entry point | `app/music_genre_sommelier/controllers/main.py` |
 
 **Import convention:** With `PYTHONPATH` including `app/` at repo root (or `/src` in the app container): `from music_genre_sommelier.models...`, `from music_genre_sommelier.services...`, etc. Enum modules under `utils/enum/` are **not** domain entities; they hold persisted/API enum values only and must not import the service layer or REST adapters.
 
@@ -38,7 +112,7 @@ Python package **`music_genre_sommelier`** lives under **`app/music_genre_sommel
 
 Explicit ownership. Format: `[module] owns X / does not own Y`.
 
-- **`AudioFile`** — owns persisted upload metadata (`file_path`, `upload_status`, `upload_error`) and **`record_success`** / **`record_failure`** (via **`_set_status`** for `upload_status`); does not own conversion, spectrogram generation, or inference. Inbound byte streaming and path wiring are expected from REST/storage orchestration (future or adapters), not from `SpectrogramFile` or `MLTask`.
+- **`AudioFile`** — owns persisted upload metadata (`file_path`); does not own conversion, spectrogram generation, or inference. Upload is synchronous — the HTTP response communicates success or failure; only successful uploads are persisted. Inbound byte streaming and path wiring are expected from REST/storage orchestration (future or adapters), not from `SpectrogramFile` or `MLTask`.
 
 - **`SpectrogramFile`** — owns the storage record of the spectrogram artifact (path and timestamps); does not own conversion logic, ML, or transactional settlement (no methods beyond the SQLModel row).
 
@@ -46,11 +120,11 @@ Explicit ownership. Format: `[module] owns X / does not own Y`.
 
 - **`AudioSpectrogramService`** — owns the conversion pipeline from audio file path to mel spectrogram data and optional image artifact, persistence of `SpectrogramFile`, linking `audio_spectrogram.spectrogram_file_id`, and committing the session; does not own inference or ledger rules.
 
-- **`MLModel`** — persistence row for **`model_path`** and **`prediction_cost`**; does not own `predict` or task state. Inference is implemented in **`MLTaskService`** (e.g. `_perform_prediction`) using model metadata and spectrogram paths.
+- **`MLModel`** — persistence row for **`model_path`**, **`prediction_cost`**, **`input_width`**, and **`input_height`**; does not own `predict` or task state. Inference is implemented in **`MLTaskService`** (e.g. `_perform_prediction`) using model metadata and spectrogram paths.
 
-- **`MLTask`** — owns task row state (**`status`**, **`result`**, **`error`**) and **`record_success`** / **`record_failure`**, which call **`transaction.approve()`** on success and **`transaction.cancel()`** on failure (see **Settlement coupling** below). Does not implement fund checks (those run on **`Transaction`** before work) or open raw audio files for inference.
+- **`MLTask`** — owns task row state (**`status`**, **`result`**, **`error`**) and **`record_success`** / **`record_failure`**, which update task state only. Does not call **`transaction.approve()`** or **`transaction.cancel()`** — settlement is the caller's responsibility (see **Settlement coupling** below). Does not implement fund checks (those run on **`Transaction`** before work) or open raw audio files for inference.
 
-- **`MLTaskService`** — owns **`process(ml_task)`**: fund check via **`transaction.check_funds()`**, prediction, then **`ml_task.record_success`** / **`record_failure`**; does not replace entity rules inside models (it coordinates calls and session commit).
+- **`MLTaskService`** — owns **`process(ml_task)`**: fund check via **`transaction.check_funds()`**, prediction, **`ml_task.record_success`** / **`record_failure`**, and explicit settlement calls (**`transaction.approve()`** on success, **`transaction.cancel()`** on generic failure); does not replace entity rules inside models (it coordinates calls and session commit).
 
 - **`Transaction`** — owns ledger row state (`pending` → terminal statuses), **`approve`**, **`cancel`**, **`fail_insufficient_funds`**, instance **`check_funds()`** (may set **`fail_insufficient_funds`** when insufficient), and static **`get_balance(user_id)`**. **`MLTask`** references the ledger row via **`transaction_id`**; the **`transaction`** table has **no** `ml_task_id` column.
 
@@ -58,11 +132,11 @@ Explicit ownership. Format: `[module] owns X / does not own Y`.
 
 ### Settlement coupling (implementation)
 
-On success, **`MLTask.record_success`** invokes **`transaction.approve()`**. On failure, **`MLTask.record_failure`** invokes **`transaction.cancel()`**. Fund sufficiency is evaluated in **`MLTaskService.process`** via **`transaction.check_funds()`** before prediction. This couples settlement side effects to task row methods by design; new code must keep **`approve()`** only after a successful prediction path and avoid speculative debits (see **RULE-02**).
+Settlement is owned by **`MLTaskService.process`**, not by **`MLTask`** row methods. After a successful prediction, the service calls **`ml_task.record_success`** (task state only) then **`transaction.approve()`**. On generic failure, it calls **`ml_task.record_failure`** then **`transaction.cancel()`**. On insufficient funds, **`transaction.check_funds()`** already sets the transaction to **`fail_insufficient_funds`** — the service calls only **`ml_task.record_failure`** without an additional cancel. Fund sufficiency is evaluated via **`transaction.check_funds()`** before prediction. New code must keep **`approve()`** only after a successful prediction path and avoid speculative debits (see **RULE-02**).
 
 ### Status field encapsulation (implementation)
 
-For **`AudioFile`** (`upload_status`), **`AudioSpectrogram`** (`status`), **`MLTask`** (`status`), and **`Transaction`** (`status`), implementations **should** route persistence-backed status changes through a **private** **`_set_status`** used only from **`record_*`**, **`approve`**, **`cancel`**, **`fail_insufficient_funds`**, or equivalent public methods on the same class. Callers **must not** invoke **`_set_status`** from outside the class.
+For **`AudioSpectrogram`** (`status`), **`MLTask`** (`status`), and **`Transaction`** (`status`), implementations **should** route persistence-backed status changes through a **private** **`_set_status`** used only from **`record_*`**, **`approve`**, **`cancel`**, **`fail_insufficient_funds`**, or equivalent public methods on the same class. Callers **must not** invoke **`_set_status`** from outside the class.
 
 ---
 
@@ -70,12 +144,12 @@ For **`AudioFile`** (`upload_status`), **`AudioSpectrogram`** (`status`), **`MLT
 
 For each interaction: **Input** — what is passed in; **Output** — what is returned; **Side-effect policy** — what mutates vs read-only.
 
-### 1. Upload and `AudioFile` (REST / storage layer, future)
+### 1. Upload and `AudioFile` (REST / storage layer)
 
 | Aspect | Definition |
 |--------|------------|
 | **Input** | Inbound upload content, filename/MIME hints, owning `user_id`, storage adapter. |
-| **Output** | Persisted `AudioFile` with `file_path`; **`record_success`** or **`record_failure`** sets terminal `upload_status`. |
+| **Output** | Persisted `AudioFile` with `file_path` on success; storage failure raises and no record is written. |
 | **Side-effect policy** | **Mutates:** `AudioFile` row and blob storage as implemented. **Read-only:** no conversion or `MLTask` in this step. |
 
 ### 2. `AudioSpectrogramService.convert(audio_file, ...)`
@@ -100,7 +174,7 @@ For each interaction: **Input** — what is passed in; **Output** — what is re
 |--------|------------|
 | **Input** | `MLTask` with related **`transaction`**, **`ml_model`**, **`audio_spectrogram`** (and spectrogram file); funds must be sufficient after **`check_funds()`** unless the row is already failed for insufficient funds. |
 | **Output** | Prediction **`dict`** or `None` on failure; **`ml_task.record_success`** / **`record_failure`** set terminal status, **`result`** / **`error`** as implemented. |
-| **Side-effect policy** | **Mutates:** task row and linked **`transaction`** status via **`record_*`**; session **add/commit** in **`finally`**. **Must not** read **`AudioFile`** for inference; uses **`SpectrogramFile`** / model metadata only. |
+| **Side-effect policy** | **Mutates:** task row via **`record_*`**; transaction status via explicit **`approve()`** / **`cancel()`** calls; session **add/commit** in **`finally`**. **Must not** read **`AudioFile`** for inference; uses **`SpectrogramFile`** / model metadata only. |
 
 ### 5. `Transaction.check_funds()` (instance)
 
@@ -124,7 +198,7 @@ For each interaction: **Input** — what is passed in; **Output** — what is re
 |--------|------------|
 | **Input** | Row in an eligible state per product rules. |
 | **Output** | Terminal **`status`** (`success`, `fail_canceled`, `fail_insufficient_funds`). |
-| **Side-effect policy** | **Mutates:** **`status`** via **`_set_status`**. **`approve()`** is invoked from **`MLTask.record_success`** after a successful prediction path. **`cancel()`** is invoked from **`MLTask.record_failure`**. |
+| **Side-effect policy** | **Mutates:** **`status`** via **`_set_status`**. **`approve()`** is invoked from **`MLTaskService`** after a successful prediction path. **`cancel()`** is invoked from **`MLTaskService`** on generic failure. **`fail_insufficient_funds()`** is invoked from **`check_funds()`** when balance is insufficient. |
 
 ### 8. `CommonUser.get_balance()` / `AdminUser.get_balance()`
 
@@ -194,7 +268,7 @@ The repeatable procedure for verifying conformance lives in **`docs/drift-check.
 ### Invariants checked (summary)
 
 1. **`MLTaskService.process`** does not call **`AudioSpectrogramService.convert`** mid-flight; conversion is a prior step.
-2. **`approve()`** is not reached except after successful prediction in the service flow (**`record_success`**).
+2. **`approve()`** and **`cancel()`** are called explicitly by **`MLTaskService`**, not from within **`MLTask.record_*`** methods. **`approve()`** is not reached except after a successful prediction path.
 3. **`SpectrogramFile`** has no domain methods beyond the SQLModel definition.
 4. **`AdminUser.get_balance()`** returns **`float('inf')`** without a DB query.
 

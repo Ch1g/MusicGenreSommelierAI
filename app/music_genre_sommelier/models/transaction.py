@@ -1,10 +1,11 @@
 from datetime import datetime
-
 from sqlmodel import Column, DateTime, Field, Relationship, Session, SQLModel, func, select
-
-from music_genre_sommelier.models.user import User
 from music_genre_sommelier.utils.database import engine
 from music_genre_sommelier.utils.enum.transaction import TransactionStatus
+from typing import TYPE_CHECKING, Optional
+
+if TYPE_CHECKING:
+    from music_genre_sommelier.models.user import User
 
 class Transaction(SQLModel, table=True):
     __tablename__ = "transaction" # type: ignore
@@ -18,7 +19,7 @@ class Transaction(SQLModel, table=True):
         default_factory=datetime.now,
         sa_column=Column(DateTime, onupdate=func.now())
     )
-    user: User = Relationship()
+    user: Optional["User"] = Relationship(back_populates='transactions')
 
     def approve(self):
         self._set_status(TransactionStatus.SUCCESS)
@@ -31,10 +32,10 @@ class Transaction(SQLModel, table=True):
 
     def check_funds(self) -> None:
         if self._is_sufficient() is False:
-            self.fail_insufficient_funds()          
+            self.fail_insufficient_funds()
 
     def _is_sufficient(self) -> bool:
-        return Transaction.get_balance(self.user_id) >= self.amount
+        return Transaction.get_balance(self.user_id) >= -self.amount
 
     def _set_status(self, status: TransactionStatus) -> None:
         self.status = status

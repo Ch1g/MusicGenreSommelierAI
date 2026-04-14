@@ -1,10 +1,8 @@
 from sqlmodel import Session, SQLModel, select
 
-from music_genre_sommelier.models.admin_user import AdminUser
-from music_genre_sommelier.models.common_user import CommonUser
+from music_genre_sommelier.models.user import User
 from music_genre_sommelier.models.ml_model import MLModel
 from music_genre_sommelier.models.transaction import Transaction
-from music_genre_sommelier.models.user import User
 from music_genre_sommelier.services.registration_service import RegistrationService
 from music_genre_sommelier.utils.database.db import engine
 from music_genre_sommelier.utils.enum.transaction import TransactionStatus
@@ -15,6 +13,8 @@ _SEED_ADMIN_PASSWORD = "admin-123"
 _SEED_COMMON_PASSWORD = "common-123"
 _SEED_DEFAULT_MODEL_PATH = "google/vit-base-patch16-224"
 
+def flush_db() -> None:
+    SQLModel.metadata.drop_all(engine)
 
 def create_tables() -> None:
     SQLModel.metadata.create_all(engine)
@@ -101,6 +101,8 @@ def seed_ml_model_with_session(session) -> None:
             MLModel(
                 model_path=_SEED_DEFAULT_MODEL_PATH,
                 prediction_cost=15.0,
+                input_width=224,
+                input_height=224,
             )
         )
 
@@ -119,6 +121,15 @@ def seed_database() -> None:
         session.commit()
 
 
-def seed() -> None:
+def run(with_flush: bool) -> None:
+    if with_flush:
+        flush_db()
+
     create_tables()
     seed_database()
+    print("Seeds done.")
+
+
+if __name__ == "__main__":
+    import sys
+    run(with_flush="--flush" in sys.argv)

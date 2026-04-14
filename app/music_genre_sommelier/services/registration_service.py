@@ -2,18 +2,11 @@ import hashlib
 import hmac
 from sqlmodel import Session, select
 
+from music_genre_sommelier.utils.errors.errors import AuthenticationError, EmailAlreadyExistsError, ValidationError
 from music_genre_sommelier.models import User
 
 
 PASSWORD_SECRET_KEY = "music-sommelier-secret-2026"
-
-
-class EmailAlreadyExistsError(Exception):
-    pass
-
-
-class InvalidCredentialsError(Exception):
-    pass
 
 
 class RegistrationService:
@@ -40,26 +33,30 @@ class RegistrationService:
 
         return user
 
-    def verify_password(self, email: str, password: str) -> bool:
+    def verify_password(self, email: str, password: str) -> User:
         user = self._get_user_by_email(email)
         if user is None:
-            return False
+            raise AuthenticationError("Invalid email or password")
 
         encrypted_password = self._encrypt_password(password)
-        return hmac.compare_digest(user.encrypted_password, encrypted_password)
+
+        if hmac.compare_digest(user.encrypted_password, encrypted_password) is False:
+            raise AuthenticationError("Invalid email or password")
+
+        return user
 
     def _validate_credentials(self, email: str, password: str) -> None:
         if not email or not isinstance(email, str):
-            raise InvalidCredentialsError("Email is required")
+            raise ValidationError("Email is required")
 
         if "@" not in email or "." not in email:
-            raise InvalidCredentialsError("Invalid email format")
+            raise ValidationError("Invalid email format")
 
         if not password or not isinstance(password, str):
-            raise InvalidCredentialsError("Password is required")
+            raise ValidationError("Password is required")
 
         if len(password) < 8:
-            raise InvalidCredentialsError("Password must be at least 8 characters")
+            raise ValidationError("Password must be at least 8 characters")
 
     def _email_exists(self, email: str) -> bool:
         return self._get_user_by_email(email) is not None

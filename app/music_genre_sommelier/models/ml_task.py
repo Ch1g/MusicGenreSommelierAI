@@ -27,12 +27,10 @@ class MLTask(SQLModel, table=True):
     def record_failure(self, error: str):
         self.error = error
         self._set_status(CommonStatus.FAILURE)
-        self.transaction.cancel()
 
     def record_success(self, result: dict):
         self.result = result
         self._set_status(CommonStatus.SUCCESS)
-        self.transaction.approve()
 
     def _set_status(self, status: CommonStatus):
         self.status = status
