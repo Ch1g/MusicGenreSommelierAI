@@ -10,17 +10,24 @@
 ├── README.md
 ├── docker-compose.yml
 ├── app/                 # образ приложения: Python, зависимости
+│   ├── entrypoint.sh        # запуск app (seed + FastAPI сервер)
+│   ├── worker_entrypoint.sh # запуск worker (preload моделей + InferenceConsumer)
 │   └── music_genre_sommelier/
 │       ├── controllers/ # REST-контроллеры (FastAPI)
 │       ├── models/      # модели данных (SQLModel)
 │       ├── services/    # сервисный слой (бизнес-логика)
-│       └── utils/       # утилиты (БД, enum'ы)
+│       └── utils/
+│           ├── database/        # движок БД, seed
+│           ├── enum/            # перечисления статусов
+│           ├── errors/          # иерархия AppError
+│           ├── message_broker/  # RabbitMQ: queues, publishers, consumers
+│           └── model_loader.py  # кэшированная загрузка ViT-моделей
 ├── db/                  # образ PostgreSQL
 ├── web-proxy/           # образ nginx (reverse proxy)
 └── docs/                # architecture.md, stack.md, drift-check.md, decisions.md
 ```
 
-Сервис брокера сообщений задаётся в `docker-compose.yml` как `message-broker` (образ RabbitMQ), отдельной папки `mb/` в репозитории нет.
+Сервис брокера сообщений задаётся в `docker-compose.yml` как `message-broker` (образ RabbitMQ), отдельной папки `mb/` в репозитории нет. Воркер (`worker`) запускается как отдельный Compose-сервис (replicas: 2) с тем же образом `app`.
 
 ## Описание
 
@@ -187,3 +194,4 @@ erDiagram
 - Домашнее задание 2: Агент использовался для создания блока [Структура репозитория](#структура-репозитория), GPT использовался для поиска причины несохранения данных после перезапуска контейнера PostgreSQL (образ 18-й версии использует по умолчанию этот путь /var/lib/postgresql/18/docker)
 - Домашнее задание 3: Агент использовался для рефакторинга моделей данных — вынос готовой сервисной логики в отдельный слой `services/`, перенос файлов моделей в `models/`.
 - Домашнее задание 4: Агент использовался для миграции агентской документации с `AGENTS.md` на `CLAUDE.md`, рефакторинга модели `AudioFile` (удалены поля статуса загрузки, добавлен `user_id`), устранения связанности `MLTask` с `Transaction` (вызовы `approve`/`cancel` вынесены в `MLTaskService`), изменения конвертаци аудио в спектрограмму
+- Домашнее задание 5: Агент использовался для анализа diff, обновления архитектурной документации (`docs/architecture.md`, `docs/stack.md`, `docs/drift-check.md`, `README.md`), формирования описания PR.
