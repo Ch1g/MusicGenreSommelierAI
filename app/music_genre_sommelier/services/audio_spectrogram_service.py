@@ -15,6 +15,7 @@ from music_genre_sommelier.models.audio_file import AudioFile
 from music_genre_sommelier.models.audio_spectrogram import AudioSpectrogram
 from music_genre_sommelier.models.spectrogram_file import SpectrogramFile
 from music_genre_sommelier.services.storage_service import StorageDirectory, StorageService
+from music_genre_sommelier.utils.errors.errors import NotFoundError
 
 matplotlib.use('Agg')
 
@@ -25,10 +26,6 @@ SEGMENT_SECONDS: int = 30
 IMG_WIDTH: int = 224
 IMG_HEIGHT: int = 224
 DPI: int = 100
-
-
-class AudioFileNotFoundError(Exception):
-    pass
 
 
 class AudioSpectrogramService:
@@ -105,7 +102,7 @@ class AudioSpectrogramService:
     ) -> Tuple[NDArray[np.floating], int | float]:
         path = Path(file_path)
         if not path.exists():
-            raise AudioFileNotFoundError(f"Audio file not found: {file_path}")
+            raise NotFoundError(f"Audio file not found: {file_path}")
 
         samples, sample_rate = librosa.load(str(path), sr=sr)
         return samples, sample_rate

@@ -12,11 +12,11 @@ from music_genre_sommelier.models.ml_task import MLTask
 from music_genre_sommelier.models.transaction import Transaction
 from music_genre_sommelier.models.user import User
 from music_genre_sommelier.services.audio_spectrogram_service import AudioSpectrogramService
-from music_genre_sommelier.services.ml_task_service import MLTaskService
 from music_genre_sommelier.services.storage_service import StorageService
 from music_genre_sommelier.utils.database.db import engine
 from music_genre_sommelier.utils.enum.common import CommonStatus
 from music_genre_sommelier.utils.errors.errors import AppError, NotFoundError, ValidationError
+from music_genre_sommelier.utils.message_broker.publishers.inference_publisher import InferencePublisher
 
 router = APIRouter(prefix="/inference", tags=["inference"])
 
@@ -84,7 +84,7 @@ def _get_or_create_spectrogram(
 
 @router.post(
     "/",
-    status_code=200,
+    status_code=201,
     response_model=MLTask,
     responses={
         404: {"description": "Not found"},
@@ -116,11 +116,11 @@ def run_inference(body: RunInferenceRequest):
             )
             session.add(ml_task)
             session.flush()
+            session.commit()
 
-            MLTaskService(session).process(ml_task)
-            session.refresh(ml_task)
+            InferencePublisher().publish({"ml_task_id": ml_task.id})
 
-            return JSONResponse(status_code=200, content=ml_task.model_dump(mode="json"))
+            return JSONResponse(status_code=201, content=ml_task.model_dump(mode="json"))
         except AppError as e:
             return JSONResponse(status_code=e.status_code, content={"detail": str(e)})
         except Exception as e:
