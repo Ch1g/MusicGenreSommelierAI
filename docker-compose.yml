@@ -17,12 +17,30 @@ services:
     build:
       context: ./app
       dockerfile: Dockerfile
+    command: ./entrypoint.sh
     volumes:
       - ./app:/src
     env_file:
       - .db.env
     networks:
       - app-network
+
+  worker:
+    build:
+      context: ./app
+      dockerfile: Dockerfile
+    command: ./worker_entrypoint.sh
+    volumes:
+      - ./app:/src
+    env_file:
+      - .db.env
+    depends_on:
+      - database
+      - message-broker
+    networks:
+      - app-network
+    deploy:
+      replicas: 2
 
   message-broker:
     image: rabbitmq:4.2-management-alpine
