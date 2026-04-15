@@ -1,3 +1,4 @@
+from abc import ABC, abstractmethod
 import json
 import logging
 from typing import Generic, TypeVar
@@ -11,10 +12,10 @@ logger = logging.getLogger(__name__)
 
 T = TypeVar("T")
 
-class BasePublisher(Generic[T]):
+class BasePublisher(ABC, Generic[T]):
 
-    def _queue_config(self) -> queues.QueueConfig:
-        raise NotImplementedError("Subclasses must implement this method")
+    @abstractmethod
+    def _queue_config(self) -> queues.QueueConfig: ...
 
     def publish(self, body: T) -> None:
         config = self._queue_config()
