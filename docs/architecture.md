@@ -10,12 +10,17 @@ High-level view of the Music Genre Sommelier AI codebase. The normative contract
 | **Services** | Orchestration: [`AudioSpectrogramService`](../app/music_genre_sommelier/services/audio_spectrogram_service.py), [`MLTaskService`](../app/music_genre_sommelier/services/ml_task_service.py), [`RegistrationService`](../app/music_genre_sommelier/services/registration_service.py), [`StorageService`](../app/music_genre_sommelier/services/storage_service.py). |
 | **Models (SQLModel)** | Persisted tables and row-level helpers (`record_*`, `_set_status`) under [`app/music_genre_sommelier/models/`](../app/music_genre_sommelier/models/). |
 | **Database** | PostgreSQL; engine in [`db.py`](../app/music_genre_sommelier/utils/database/db.py); optional bootstrap in [`seed.py`](../app/music_genre_sommelier/utils/database/seed.py). |
+| **Message broker** | RabbitMQ; publishers and consumers under [`app/music_genre_sommelier/utils/message_broker/`](../app/music_genre_sommelier/utils/message_broker/). Queue configs (`QueueConfig`, `InferenceMessage`) live in [`queues.py`](../app/music_genre_sommelier/utils/message_broker/queues.py). `InferencePublisher` (REST layer) and `InferenceConsumer` (worker) implement the inference queue. |
+| **ML runtime** | ViT models loaded and cached via [`model_loader.py`](../app/music_genre_sommelier/utils/model_loader.py) (`lru_cache`). Worker preloads all registered models on startup before consuming messages. |
 
 ## Data flow (conceptual)
 
 1. **Upload**: bytes → `StorageService` → `AudioFile` row (with `user_id`). Handled by `POST /audio/{user_id}`.
 2. **Convert**: [`AudioSpectrogramService.convert`](../app/music_genre_sommelier/services/audio_spectrogram_service.py) → `AudioSpectrogram` + `SpectrogramFile` (+ optional PNG on disk via `StorageService`).
-3. **Infer**: [`MLTaskService.process`](../app/music_genre_sommelier/services/ml_task_service.py) → `transaction.check_funds()` → `_perform_prediction` → `MLTask.record_success` / `record_failure` (task state only); `MLTaskService` then calls `Transaction.approve()` on success or `Transaction.cancel()` on generic failure.
+3. **Infer (async)**:
+   - REST handler creates `Transaction` + `MLTask` rows, commits, then publishes `{"ml_task_id": <id>}` to the `inference` queue via `InferencePublisher`. Returns HTTP 201 immediately.
+   - `InferenceConsumer` (worker process) receives the message, calls [`MLTaskService.process(ml_task_id)`](../app/music_genre_sommelier/services/ml_task_service.py) → `transaction.check_funds()` → `_perform_prediction` (ViT via `model_loader`) → `MLTask.record_success` / `record_failure`; `MLTaskService` then calls `Transaction.approve()` on success or `Transaction.cancel()` on generic failure.
+   - On `AppError` the consumer nacks without requeue; on success it acks.
 
 ## Entity-relationship summary
 

@@ -11,7 +11,6 @@
 ├── docker-compose.yml
 ├── app/                 # образ приложения: Python, зависимости
 │   ├── entrypoint.sh        # запуск app (seed + FastAPI сервер)
-│   ├── worker_entrypoint.sh # запуск worker (preload моделей + InferenceConsumer)
 │   └── music_genre_sommelier/
 │       ├── controllers/ # REST-контроллеры (FastAPI)
 │       ├── models/      # модели данных (SQLModel)
@@ -22,12 +21,14 @@
 │           ├── errors/          # иерархия AppError
 │           ├── message_broker/  # RabbitMQ: queues, publishers, consumers
 │           └── model_loader.py  # кэшированная загрузка ViT-моделей
-├── db/                  # образ PostgreSQL
+├── mb/                  # образ воркера (отдельный от app)
+│   ├── entrypoint.sh        # запуск worker (preload моделей + InferenceConsumer)
+│   └── requirements.txt
 ├── web-proxy/           # образ nginx (reverse proxy)
 └── docs/                # architecture.md, stack.md, drift-check.md, decisions.md
 ```
 
-Сервис брокера сообщений задаётся в `docker-compose.yml` как `message-broker` (образ RabbitMQ), отдельной папки `mb/` в репозитории нет. Воркер (`worker`) запускается как отдельный Compose-сервис (replicas: 2) с тем же образом `app`.
+Сервис брокера сообщений задаётся в `docker-compose.yml` как `message-broker` (образ RabbitMQ). Воркер (`worker`) запускается как отдельный Compose-сервис (replicas: 2) с собственным образом из `mb/`; пакет `music_genre_sommelier` монтируется в контейнер из `app/` через том.
 
 ## Описание
 
