@@ -15,7 +15,7 @@ def _secret() -> str:
     except KeyError as exc:
         raise RuntimeError(
             "JWT_SECRET environment variable is not set. "
-            "Define it in .db.env (see .db.env.example)."
+            "Define it in .app.env (see .app.env.example)."
         ) from exc
 
 
