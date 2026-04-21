@@ -1,18 +1,24 @@
-import logging
 import uuid
 
-from fastapi import APIRouter, UploadFile
-from fastapi.responses import JSONResponse, Response
+from fastapi import APIRouter, Depends, UploadFile
+from fastapi.responses import FileResponse, JSONResponse, Response
 from sqlmodel import Session, select
 
 from music_genre_sommelier.models.audio_file import AudioFile
 from music_genre_sommelier.models.audio_spectrogram import AudioSpectrogram
 from music_genre_sommelier.models.user import User
 from music_genre_sommelier.services.storage_service import StorageDirectory, StorageService
+from music_genre_sommelier.utils.auth import get_current_user_id
 from music_genre_sommelier.utils.database.db import engine
-from music_genre_sommelier.utils.errors.errors import AppError, NotFoundError, ValidationError
+from music_genre_sommelier.utils.errors.errors import ForbiddenError, NotFoundError, ValidationError
 
-router = APIRouter(prefix="/audio", tags=["audio"])
+
+def _require_self(path_user_id: int, current_user_id: int) -> None:
+    if path_user_id != current_user_id:
+        raise ForbiddenError("Cannot access another user's resources")
+
+
+router = APIRouter(prefix="/api/audio", tags=["audio"])
 
 
 def _get_user(session: Session, user_id: int) -> User:
@@ -32,39 +38,38 @@ def _get_user(session: Session, user_id: int) -> User:
         500: {"description": "Internal server error"},
     },
 )
-async def upload_audio(user_id: int, file: UploadFile):
+async def upload_audio(
+    user_id: int,
+    file: UploadFile,
+    current_user_id: int = Depends(get_current_user_id),
+):
+    _require_self(user_id, current_user_id)
     with Session(engine) as session:
+        if not file.content_type or not file.content_type.startswith("audio/"):
+            raise ValidationError(
+                f"Invalid content type: {file.content_type!r}. Expected audio/*"
+            )
+
+        data = await file.read()
+        if not data:
+            raise ValidationError("File is empty")
+
+        _get_user(session, user_id)
+
+        filename = f"{uuid.uuid4()}_{file.filename}"
+        storage = StorageService()
+        path = storage.store(data, StorageDirectory.AUDIOS, filename)
+
+        audio_file = AudioFile(user_id=user_id, file_path=str(path))
+        session.add(audio_file)
         try:
-            if not file.content_type or not file.content_type.startswith("audio/"):
-                raise ValidationError(
-                    f"Invalid content type: {file.content_type!r}. Expected audio/*"
-                )
+            session.commit()
+        except Exception:
+            storage.delete(str(path))
+            raise
+        session.refresh(audio_file)
 
-            data = await file.read()
-            if not data:
-                raise ValidationError("File is empty")
-
-            _get_user(session, user_id)
-
-            filename = f"{uuid.uuid4()}_{file.filename}"
-            storage = StorageService()
-            path = storage.store(data, StorageDirectory.AUDIOS, filename)
-
-            audio_file = AudioFile(user_id=user_id, file_path=str(path))
-            session.add(audio_file)
-            try:
-                session.commit()
-            except Exception:
-                storage.delete(str(path))
-                raise
-            session.refresh(audio_file)
-
-            return JSONResponse(status_code=201, content=audio_file.model_dump(mode="json"))
-        except AppError as e:
-            return JSONResponse(status_code=e.status_code, content={"detail": str(e)})
-        except Exception as e:
-            logging.exception(str(e))
-            return JSONResponse(status_code=500, content={"detail": "Internal Server Error"})
+        return JSONResponse(status_code=201, content=audio_file.model_dump(mode="json"))
 
 
 @router.get(
@@ -76,19 +81,17 @@ async def upload_audio(user_id: int, file: UploadFile):
         500: {"description": "Internal server error"},
     },
 )
-def list_audios(user_id: int):
+def list_audios(
+    user_id: int,
+    current_user_id: int = Depends(get_current_user_id),
+):
+    _require_self(user_id, current_user_id)
     with Session(engine) as session:
-        try:
-            user = _get_user(session, user_id)
-            return JSONResponse(
-                status_code=200,
-                content=[af.model_dump(mode="json") for af in user.audio_files],
-            )
-        except AppError as e:
-            return JSONResponse(status_code=e.status_code, content={"detail": str(e)})
-        except Exception as e:
-            logging.exception(str(e))
-            return JSONResponse(status_code=500, content={"detail": "Internal Server Error"})
+        user = _get_user(session, user_id)
+        return JSONResponse(
+            status_code=200,
+            content=[af.model_dump(mode="json") for af in user.audio_files],
+        )
 
 
 @router.delete(
@@ -100,29 +103,52 @@ def list_audios(user_id: int):
         500: {"description": "Internal server error"},
     },
 )
-def delete_audio(audio_id: int):
+def delete_audio(
+    audio_id: int,
+    current_user_id: int = Depends(get_current_user_id),
+):
     with Session(engine) as session:
-        try:
-            audio_file = session.exec(
-                select(AudioFile).where(AudioFile.id == audio_id)
-            ).first()
-            if audio_file is None:
-                raise NotFoundError(f"Audio file with id {audio_id} is not found")
+        audio_file = session.exec(
+            select(AudioFile).where(AudioFile.id == audio_id)
+        ).first()
+        if audio_file is None:
+            raise NotFoundError(f"Audio file with id {audio_id} is not found")
 
-            has_spectrograms = session.exec(
-                select(AudioSpectrogram).where(AudioSpectrogram.audio_file_id == audio_id)
-            ).first()
-            if has_spectrograms:
-                raise ValidationError("Audio file has associated tasks and cannot be deleted")
+        if audio_file.user_id != current_user_id:
+            raise ForbiddenError("Cannot delete another user's audio file")
 
-            StorageService().delete(audio_file.file_path)
+        has_spectrograms = session.exec(
+            select(AudioSpectrogram).where(AudioSpectrogram.audio_file_id == audio_id)
+        ).first()
+        if has_spectrograms:
+            raise ValidationError("Audio file has associated tasks and cannot be deleted")
 
-            session.delete(audio_file)
-            session.commit()
+        StorageService().delete(audio_file.file_path)
+        session.delete(audio_file)
+        session.commit()
 
-            return Response(status_code=204)
-        except AppError as e:
-            return JSONResponse(status_code=e.status_code, content={"detail": str(e)})
-        except Exception as e:
-            logging.exception(str(e))
-            return JSONResponse(status_code=500, content={"detail": "Internal Server Error"})
+        return Response(status_code=204)
+
+
+@router.get(
+    "/files/{audio_id}/stream",
+    status_code=200,
+    responses={
+        404: {"description": "Not found"},
+        500: {"description": "Internal server error"},
+    },
+)
+def stream_audio(
+    audio_id: int,
+    current_user_id: int = Depends(get_current_user_id),
+):
+    with Session(engine) as session:
+        audio_file = session.exec(
+            select(AudioFile).where(AudioFile.id == audio_id)
+        ).first()
+        if audio_file is None:
+            raise NotFoundError(f"Audio file with id {audio_id} is not found")
+
+        _require_self(audio_file.user_id, current_user_id)
+
+        return FileResponse(audio_file.file_path)

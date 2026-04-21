@@ -16,3 +16,7 @@ class AuthenticationError(AppError):
 
 class NotFoundError(AppError):
     status_code = 404
+
+
+class ForbiddenError(AppError):
+    status_code = 403
