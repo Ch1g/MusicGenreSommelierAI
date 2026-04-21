@@ -7,8 +7,9 @@ Runtime and infrastructure for local and containerized development. Compose is t
 | Compose service | Role |
 |-----------------|------|
 | `web-proxy` | nginx reverse proxy; build context [`web-proxy/`](../web-proxy/); volumes `./web-proxy/conf.d` → `/etc/nginx/conf.d`; ports **80**, **443**. Depends on `app`. |
-| `app` | Python application image; build context [`app/`](../app/); bind-mount **`./app`** → **`/src`** in container (`WORKDIR /src` in [`app/Dockerfile`](../app/Dockerfile)); env from [`.db.env`](../.db.env) at repo root. |
-| `message-broker` | RabbitMQ **4.2-management-alpine**; ports **5672** (AMQP), **15672** (management UI); volume `rabbitmq-data`. There is no separate `mb/` folder in the repo—the broker is defined only in Compose. |
+| `app` | Python application image; build context [`app/`](../app/); command `./entrypoint.sh` (runs seed then FastAPI server); bind-mount **`./app`** → **`/src`** (`WORKDIR /src`); env from [`.db.env`](../.db.env). |
+| `worker` | Separate image built from [`mb/`](../mb/); entrypoint preloads all ML models then starts `InferenceConsumer`; bind-mount **`./app/music_genre_sommelier`** → **`/src/music_genre_sommelier`** (shares package, not the full context); **replicas: 2**; depends on `database` and `message-broker`. |
+| `message-broker` | RabbitMQ **4.2-management-alpine**; ports **5672** (AMQP), **15672** (management UI); volume `rabbitmq-data`. Stock image — no custom build context. |
 | `database` | PostgreSQL **18.3-alpine3.23**; env from root [`.db.env`](../.db.env) (see [`docker-compose.yml`](../docker-compose.yml)); volume **`postgres-data`** mounted at **`/var/lib/postgresql/data`** (persistence across restarts). |
 
 ## Network

@@ -8,22 +8,31 @@ Repeatable checks to confirm implementation still matches **[`CLAUDE.md`](../CLA
 - [ ] Services live under `app/music_genre_sommelier/services/`.
 - [ ] Controllers live under `app/music_genre_sommelier/controllers/`.
 - [ ] Enums in `app/music_genre_sommelier/utils/enum/`; DB engine in `app/music_genre_sommelier/utils/database/`.
+- [ ] Message broker utilities (queues, publishers, consumers) live under `app/music_genre_sommelier/utils/message_broker/`.
+- [ ] Model loader lives at `app/music_genre_sommelier/utils/model_loader.py`.
 
 ```bash
 test -d app/music_genre_sommelier/models
 test -d app/music_genre_sommelier/services
 test -d app/music_genre_sommelier/controllers
+test -d app/music_genre_sommelier/utils/message_broker
+test -f app/music_genre_sommelier/utils/model_loader.py
 ```
 
 ## 2. Orchestration boundaries
 
 - [ ] **`MLTaskService.process`** is the entry point for inference orchestration (not `MLTask` alone).
 - [ ] **`AudioSpectrogramService.convert`** is the entry point for conversion (not `AudioSpectrogram.convert` on the model).
+- [ ] Inference controller must use **`InferencePublisher`** to enqueue tasks — it must **not** call `MLTaskService` directly.
 
 ```bash
 rg "def process" app/music_genre_sommelier/services/ml_task_service.py
 rg "def convert" app/music_genre_sommelier/services/audio_spectrogram_service.py
+rg "InferencePublisher" app/music_genre_sommelier/controllers/inference.py
+rg "MLTaskService" app/music_genre_sommelier/controllers/inference.py && echo "FAIL: MLTaskService in inference controller" || true
 ```
+
+(Expect `InferencePublisher` present and `MLTaskService` absent in `inference.py`.)
 
 ## 3. No raw audio in inference path
 

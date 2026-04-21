@@ -8,6 +8,7 @@ app.include_router(transactions.router)
 app.include_router(audio.router)
 app.include_router(inference.router)
 
+
 @app.get("/")
 def root():
     return {"Hello": "World"}

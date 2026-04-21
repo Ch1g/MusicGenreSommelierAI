@@ -24,6 +24,22 @@ services:
     networks:
       - app-network
 
+  worker:
+    build:
+      context: ./mb
+      dockerfile: Dockerfile
+    volumes:
+      - ./app/music_genre_sommelier:/src/music_genre_sommelier
+    env_file:
+      - .db.env
+    depends_on:
+      - database
+      - message-broker
+    networks:
+      - app-network
+    deploy:
+      replicas: 2
+
   message-broker:
     image: rabbitmq:4.2-management-alpine
     command: rabbitmq-server
