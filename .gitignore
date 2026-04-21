@@ -11,3 +11,12 @@ __pycache__/
 
 # Local storage
 app/storage
+
+# Secrets / local env (use *.env.example templates instead)
+.db.env
+.app.env
+db/.env
+
+# Frontend build artifacts
+frontend/node_modules/
+frontend/dist/
