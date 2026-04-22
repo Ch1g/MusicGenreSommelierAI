@@ -10,6 +10,7 @@ services:
       - ./web-proxy/conf.d:/etc/nginx/conf.d:r
     depends_on:
       - app
+      - frontend
     networks:
       - app-network
 
@@ -19,17 +20,30 @@ services:
       dockerfile: Dockerfile
     volumes:
       - ./app:/src
+      - file-storage:/src/storage
     env_file:
       - .db.env
+      - .app.env
+    networks:
+      - app-network
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    volumes:
+      - ./frontend:/src
+      - /app/node_modules
     networks:
       - app-network
 
   worker:
     build:
-      context: ./mb
+      context: ./worker
       dockerfile: Dockerfile
     volumes:
       - ./app/music_genre_sommelier:/src/music_genre_sommelier
+      - file-storage:/src/storage
     env_file:
       - .db.env
     depends_on:
@@ -69,3 +83,4 @@ networks:
 volumes:
   postgres-data:
   rabbitmq-data:
+  file-storage:

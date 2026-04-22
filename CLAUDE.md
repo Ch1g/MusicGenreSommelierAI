@@ -23,7 +23,7 @@ docker compose up app      # rebuild and start app only
 
 ```bash
 cd app
-PYTHONPATH=. fastapi dev music_genre_sommelier/controllers/main.py --host 0.0.0.0 --port 8080
+PYTHONPATH=. fastapi dev music_genre_sommelier/controllers/main.py --host 0.0.0.0 --port 3000
 ```
 
 Requires a running PostgreSQL instance with credentials matching `.db.env` (see file at repo root for defaults).

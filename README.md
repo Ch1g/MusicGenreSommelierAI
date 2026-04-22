@@ -16,19 +16,27 @@
 │       ├── models/      # модели данных (SQLModel)
 │       ├── services/    # сервисный слой (бизнес-логика)
 │       └── utils/
+│           ├── auth/            # JWT: создание и верификация токенов
 │           ├── database/        # движок БД, seed
 │           ├── enum/            # перечисления статусов
 │           ├── errors/          # иерархия AppError
 │           ├── message_broker/  # RabbitMQ: queues, publishers, consumers
 │           └── model_loader.py  # кэшированная загрузка ViT-моделей
-├── mb/                  # образ воркера (отдельный от app)
+├── frontend/            # образ фронтенда: React + TypeScript (Vite, MobX)
+│   ├── Dockerfile
+│   └── src/
+│       ├── api/         # fetch-обёртка с Bearer-авторизацией
+│       ├── pages/       # LandingPage, ProfilePage
+│       ├── services/    # audio, inference, transactions, ml_models
+│       └── stores/      # MobX-хранилища (auth, audio, inference, transaction)
+├── worker/              # образ воркера (отдельный от app)
 │   ├── entrypoint.sh        # запуск worker (preload моделей + InferenceConsumer)
 │   └── requirements.txt
 ├── web-proxy/           # образ nginx (reverse proxy)
 └── docs/                # architecture.md, stack.md, drift-check.md, decisions.md
 ```
 
-Сервис брокера сообщений задаётся в `docker-compose.yml` как `message-broker` (образ RabbitMQ). Воркер (`worker`) запускается как отдельный Compose-сервис (replicas: 2) с собственным образом из `mb/`; пакет `music_genre_sommelier` монтируется в контейнер из `app/` через том.
+Сервис брокера сообщений задаётся в `docker-compose.yml` как `message-broker` (образ RabbitMQ). Воркер (`worker`) запускается как отдельный Compose-сервис (replicas: 2) с собственным образом из `worker/`; пакет `music_genre_sommelier` монтируется в контейнер из `app/` через том.
 
 ## Описание
 
@@ -196,3 +204,4 @@ erDiagram
 - Домашнее задание 3: Агент использовался для рефакторинга моделей данных — вынос готовой сервисной логики в отдельный слой `services/`, перенос файлов моделей в `models/`.
 - Домашнее задание 4: Агент использовался для миграции агентской документации с `AGENTS.md` на `CLAUDE.md`, рефакторинга модели `AudioFile` (удалены поля статуса загрузки, добавлен `user_id`), устранения связанности `MLTask` с `Transaction` (вызовы `approve`/`cancel` вынесены в `MLTaskService`), изменения конвертаци аудио в спектрограмму
 - Домашнее задание 5: Агент использовался для анализа diff, обновления архитектурной документации (`docs/architecture.md`, `docs/stack.md`, `docs/drift-check.md`, `README.md`), формирования описания PR.
+- Домашнее задание 6: Агент использовался для написания React/TypeScript SPA (`frontend/`) и обновления архитектурной документации.
