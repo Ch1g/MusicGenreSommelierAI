@@ -12,7 +12,7 @@ from music_genre_sommelier.models.user import User
 from music_genre_sommelier.services.audio_spectrogram_service import AudioSpectrogramService
 from music_genre_sommelier.services.storage_service import StorageService
 from music_genre_sommelier.utils.auth import get_current_user_id
-from music_genre_sommelier.utils.database.db import engine
+from music_genre_sommelier.utils.database.db import get_session
 from music_genre_sommelier.utils.enum.common import CommonStatus
 from music_genre_sommelier.utils.errors.errors import ForbiddenError, NotFoundError, ValidationError
 from music_genre_sommelier.utils.message_broker.publishers.inference_publisher import InferencePublisher
@@ -94,36 +94,36 @@ def _get_or_create_spectrogram(
 def run_inference(
     body: RunInferenceRequest,
     current_user_id: int = Depends(get_current_user_id),
+    session: Session = Depends(get_session),
 ):
-    with Session(engine) as session:
-        audio_file = _get_audio_file(session, body.audio_file_id)
-        if audio_file.user_id != current_user_id:
-            raise ForbiddenError("Cannot run inference on another user's audio file")
-        ml_model = _get_ml_model(session, body.ml_model_id)
+    audio_file = _get_audio_file(session, body.audio_file_id)
+    if audio_file.user_id != current_user_id:
+        raise ForbiddenError("Cannot run inference on another user's audio file")
+    ml_model = _get_ml_model(session, body.ml_model_id)
 
-        audio_spectrogram = _get_or_create_spectrogram(session, audio_file, ml_model)
+    audio_spectrogram = _get_or_create_spectrogram(session, audio_file, ml_model)
 
-        session.refresh(audio_file)
+    session.refresh(audio_file)
 
-        transaction = Transaction(
-            user_id=audio_file.user_id,
-            amount=-ml_model.prediction_cost,
-        )
-        session.add(transaction)
-        session.flush()
+    transaction = Transaction(
+        user_id=audio_file.user_id,
+        amount=-ml_model.prediction_cost,
+    )
+    session.add(transaction)
+    session.flush()
 
-        ml_task = MLTask(
-            audio_spectrogram_id=audio_spectrogram.id,
-            transaction_id=transaction.id,
-            ml_model_id=ml_model.id,
-        )
-        session.add(ml_task)
-        session.flush()
-        session.commit()
+    ml_task = MLTask(
+        audio_spectrogram_id=audio_spectrogram.id,
+        transaction_id=transaction.id,
+        ml_model_id=ml_model.id,
+    )
+    session.add(ml_task)
+    session.flush()
+    session.commit()
 
-        InferencePublisher().publish({"ml_task_id": ml_task.id})
+    InferencePublisher().publish({"ml_task_id": ml_task.id})
 
-        return JSONResponse(status_code=201, content=ml_task.model_dump(mode="json"))
+    return JSONResponse(status_code=201, content=ml_task.model_dump(mode="json"))
 
 
 @router.get(
@@ -139,21 +139,21 @@ def run_inference(
 def list_tasks(
     user_id: int,
     current_user_id: int = Depends(get_current_user_id),
+    session: Session = Depends(get_session),
 ):
     if user_id != current_user_id:
         raise ForbiddenError("Cannot list another user's tasks")
-    with Session(engine) as session:
-        if session.exec(select(User).where(User.id == user_id)).first() is None:
-            raise NotFoundError(f"User with id {user_id} is not found")
+    if session.exec(select(User).where(User.id == user_id)).first() is None:
+        raise NotFoundError(f"User with id {user_id} is not found")
 
-        ml_tasks = session.exec(
-            select(MLTask).join(Transaction).where(Transaction.user_id == user_id)
-        )
+    ml_tasks = session.exec(
+        select(MLTask).join(Transaction).where(Transaction.user_id == user_id)
+    )
 
-        return JSONResponse(
-            status_code=200,
-            content=[mlt.model_dump(mode="json") for mlt in ml_tasks],
-        )
+    return JSONResponse(
+        status_code=200,
+        content=[mlt.model_dump(mode="json") for mlt in ml_tasks],
+    )
 
 
 @router.get(
@@ -167,21 +167,21 @@ def list_tasks(
 def get_spectrogram(
     task_id: int,
     current_user_id: int = Depends(get_current_user_id),
+    session: Session = Depends(get_session),
 ):
-    with Session(engine) as session:
-        ml_task = session.exec(select(MLTask).where(MLTask.id == task_id)).first()
-        if ml_task is None:
-            raise NotFoundError(f"ML task with id {task_id} is not found")
+    ml_task = session.exec(select(MLTask).where(MLTask.id == task_id)).first()
+    if ml_task is None:
+        raise NotFoundError(f"ML task with id {task_id} is not found")
 
-        if ml_task.transaction.user_id != current_user_id:
-            raise ForbiddenError("Cannot access another user's spectrogram")
+    if ml_task.transaction.user_id != current_user_id:
+        raise ForbiddenError("Cannot access another user's spectrogram")
 
-        spectrogram = ml_task.audio_spectrogram
-        if spectrogram is None or spectrogram.spectrogram_file_id is None:
-            raise NotFoundError(f"Spectrogram for task {task_id} is not available")
+    spectrogram = ml_task.audio_spectrogram
+    if spectrogram is None or spectrogram.spectrogram_file_id is None:
+        raise NotFoundError(f"Spectrogram for task {task_id} is not available")
 
-        spectrogram_file = spectrogram.spectrogram_file
-        if spectrogram_file is None:
-            raise NotFoundError(f"Spectrogram file for task {task_id} is not found")
+    spectrogram_file = spectrogram.spectrogram_file
+    if spectrogram_file is None:
+        raise NotFoundError(f"Spectrogram file for task {task_id} is not found")
 
-        return FileResponse(spectrogram_file.file_path, media_type="image/png")
+    return FileResponse(spectrogram_file.file_path, media_type="image/png")

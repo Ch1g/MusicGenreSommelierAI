@@ -1,9 +1,9 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from fastapi.responses import JSONResponse
 from sqlmodel import Session, select
 
 from music_genre_sommelier.models.ml_model import MLModel
-from music_genre_sommelier.utils.database.db import engine
+from music_genre_sommelier.utils.database.db import get_session
 
 router = APIRouter(prefix="/api/ml-models", tags=["ml-models"])
 
@@ -16,10 +16,9 @@ router = APIRouter(prefix="/api/ml-models", tags=["ml-models"])
         500: {"description": "Internal server error"},
     },
 )
-def list_models():
-    with Session(engine) as session:
-        models = session.exec(select(MLModel)).all()
-        return JSONResponse(
-            status_code=200,
-            content=[m.model_dump(mode="json") for m in models],
-        )
+def list_models(session: Session = Depends(get_session)):
+    models = session.exec(select(MLModel)).all()
+    return JSONResponse(
+        status_code=200,
+        content=[m.model_dump(mode="json") for m in models],
+    )

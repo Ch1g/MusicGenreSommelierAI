@@ -6,7 +6,7 @@ from sqlmodel import Session, select
 from music_genre_sommelier.models.transaction import Transaction
 from music_genre_sommelier.models.user import User
 from music_genre_sommelier.utils.auth import get_current_user_id
-from music_genre_sommelier.utils.database.db import engine
+from music_genre_sommelier.utils.database.db import get_session
 from music_genre_sommelier.utils.errors.errors import ForbiddenError, NotFoundError, ValidationError
 
 
@@ -40,11 +40,11 @@ def _get_user(session: Session, user_id: int) -> User:
 def get_balance(
     user_id: int,
     current_user_id: int = Depends(get_current_user_id),
+    session: Session = Depends(get_session),
 ):
     _require_self(user_id, current_user_id)
-    with Session(engine) as session:
-        user = _get_user(session, user_id)
-        return JSONResponse(status_code=200, content={"balance": user.get_balance()})
+    user = _get_user(session, user_id)
+    return JSONResponse(status_code=200, content={"balance": user.get_balance()})
 
 
 @router.get(
@@ -59,14 +59,14 @@ def get_balance(
 def list_transactions(
     user_id: int,
     current_user_id: int = Depends(get_current_user_id),
+    session: Session = Depends(get_session),
 ):
     _require_self(user_id, current_user_id)
-    with Session(engine) as session:
-        user = _get_user(session, user_id)
-        return JSONResponse(
-            status_code=200,
-            content=[t.model_dump(mode="json") for t in user.transactions],
-        )
+    user = _get_user(session, user_id)
+    return JSONResponse(
+        status_code=200,
+        content=[t.model_dump(mode="json") for t in user.transactions],
+    )
 
 
 @router.post(
@@ -83,19 +83,19 @@ def add_funds(
     user_id: int,
     body: AddFundsRequest,
     current_user_id: int = Depends(get_current_user_id),
+    session: Session = Depends(get_session),
 ):
     _require_self(user_id, current_user_id)
-    with Session(engine) as session:
-        if body.amount <= 0:
-            raise ValidationError("amount must be positive")
+    if body.amount <= 0:
+        raise ValidationError("amount must be positive")
 
-        user = _get_user(session, user_id)
+    user = _get_user(session, user_id)
 
-        transaction = Transaction(user_id=user.id, amount=body.amount)
-        transaction.approve()
+    transaction = Transaction(user_id=user.id, amount=body.amount)
+    transaction.approve()
 
-        session.add(transaction)
-        session.commit()
-        session.refresh(transaction)
+    session.add(transaction)
+    session.commit()
+    session.refresh(transaction)
 
-        return JSONResponse(status_code=201, content=transaction.model_dump(mode="json"))
+    return JSONResponse(status_code=201, content=transaction.model_dump(mode="json"))
