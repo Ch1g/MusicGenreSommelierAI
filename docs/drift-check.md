@@ -63,10 +63,10 @@ rg "transaction_id" app/music_genre_sommelier/models/ml_task.py
 
 ## 6. Admin balance sentinel
 
-- [ ] `AdminUser.get_balance` returns `float("inf")` without opening a DB session in that method.
+- [ ] `User.get_balance` returns `float("inf")` without opening a DB session when `is_admin=True`.
 
 ```bash
-rg -A3 "def get_balance" app/music_genre_sommelier/models/admin_user.py
+rg -A5 "def get_balance" app/music_genre_sommelier/models/user.py
 ```
 
 ## 7. Settlement ordering (spot-check)

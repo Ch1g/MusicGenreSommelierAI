@@ -47,6 +47,35 @@
 
 Классификатор жанров музыкальных произведений на основе спектрограмм.
 
+## Запуск
+
+### Требования
+
+- **Docker + Docker Compose** — для запуска через контейнеры
+- **Python 3.13** + **pip** — для локального запуска вне Docker
+
+### Переменные окружения
+
+```bash
+cp .db.env.example .db.env
+cp .app.env.example .app.env
+```
+
+В `.app.env` заменить `JWT_SECRET` на случайную 256-битную строку:
+
+```bash
+python -c "import secrets; print(secrets.token_hex(32))"
+```
+
+### Запуск через Docker
+
+```bash
+docker compose up          # все сервисы: nginx, app, worker, RabbitMQ, PostgreSQL
+docker compose up app      # только app (без worker и frontend)
+```
+
+Приложение доступно на `http://localhost`.
+
 ## Сущности
 
 ### Структура классов
