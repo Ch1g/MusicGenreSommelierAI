@@ -39,7 +39,7 @@ class Transaction(SQLModel, table=True):
 
     def _set_status(self, status: TransactionStatus) -> None:
         self.status = status
-    
+
     @staticmethod
     def get_balance(user_id: int) -> float:
         query = select(func.coalesce(func.sum(Transaction.amount), 0.0)).where(

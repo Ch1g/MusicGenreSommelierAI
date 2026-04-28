@@ -11,17 +11,22 @@
 ├── docker-compose.yml
 ├── app/                 # образ приложения: Python, зависимости
 │   ├── entrypoint.sh        # запуск app (seed + FastAPI сервер)
-│   └── music_genre_sommelier/
-│       ├── controllers/ # REST-контроллеры (FastAPI)
-│       ├── models/      # модели данных (SQLModel)
-│       ├── services/    # сервисный слой (бизнес-логика)
-│       └── utils/
-│           ├── auth/            # JWT: создание и верификация токенов
-│           ├── database/        # движок БД, seed
-│           ├── enum/            # перечисления статусов
-│           ├── errors/          # иерархия AppError
-│           ├── message_broker/  # RabbitMQ: queues, publishers, consumers
-│           └── model_loader.py  # кэшированная загрузка ViT-моделей
+│   ├── music_genre_sommelier/
+│   │   ├── controllers/ # REST-контроллеры (FastAPI)
+│   │   ├── models/      # модели данных (SQLModel)
+│   │   ├── services/    # сервисный слой (бизнес-логика)
+│   │   └── utils/
+│   │       ├── auth/            # JWT: создание и верификация токенов
+│   │       ├── database/        # движок БД, seed, get_session DI
+│   │       ├── enum/            # перечисления статусов
+│   │       ├── errors/          # иерархия AppError
+│   │       ├── message_broker/  # RabbitMQ: queues, publishers, consumers
+│   │       └── model_loader.py  # кэшированная загрузка ViT-моделей
+│   └── tests/               # тесты (зеркальная структура пакета)
+│       ├── conftest.py          # фикстуры: SQLite in-memory, TestClient
+│       ├── models/              # unit-тесты моделей
+│       ├── services/            # unit-тесты сервисов
+│       └── controllers/         # интеграционные тесты контроллеров
 ├── frontend/            # образ фронтенда: React + TypeScript (Vite, MobX)
 │   ├── Dockerfile
 │   └── src/
@@ -42,6 +47,35 @@
 
 Классификатор жанров музыкальных произведений на основе спектрограмм.
 
+## Запуск
+
+### Требования
+
+- **Docker + Docker Compose** — для запуска через контейнеры
+- **Python 3.13** + **pip** — для локального запуска вне Docker
+
+### Переменные окружения
+
+```bash
+cp .db.env.example .db.env
+cp .app.env.example .app.env
+```
+
+В `.app.env` заменить `JWT_SECRET` на случайную 256-битную строку:
+
+```bash
+python -c "import secrets; print(secrets.token_hex(32))"
+```
+
+### Запуск через Docker
+
+```bash
+docker compose up          # все сервисы: nginx, app, worker, RabbitMQ, PostgreSQL
+docker compose up app      # только app (без worker и frontend)
+```
+
+Приложение доступно на `http://localhost`.
+
 ## Сущности
 
 ### Структура классов
@@ -51,15 +85,7 @@ classDiagram
     direction TB
 
     class User {
-        <<ABC>>
-        +get_balance()* 
-    }
-
-    class CommonUser {
-        +get_balance()
-    }
-
-    class AdminUser {
+        +is_admin: bool
         +get_balance()
     }
 
@@ -94,9 +120,6 @@ classDiagram
         +fail_insufficient_funds()
         _is_sufficient()
     }
-
-    User <|-- CommonUser
-    User <|-- AdminUser
 
     MLTask ..> Transaction : transaction_id
     MLTask ..> MLModel : ml_model_id
@@ -195,6 +218,35 @@ erDiagram
 | `MLTask` | `status` | `pending`, `success`, `failure` |
 | `Transaction` | `status` | `pending`, `fail_insufficient_funds`, `fail_canceled`, `success` |
 
+## Тестирование
+
+Тесты расположены в `app/tests/` и зеркально повторяют структуру пакета.
+
+```
+app/tests/
+  conftest.py          # фикстуры: движок SQLite in-memory (StaticPool), TestClient
+  models/              # unit-тесты моделей (изолированная БД, без HTTP)
+  services/            # unit-тесты сервисов (внешние зависимости замокированы)
+  controllers/         # интеграционные тесты контроллеров (TestClient + FastAPI DI)
+```
+
+Запуск тестов:
+
+```bash
+cd app
+PYTHONPATH=. pytest -q
+```
+
+Для запуска отдельной группы:
+
+```bash
+PYTHONPATH=. pytest tests/models/ -q
+PYTHONPATH=. pytest tests/services/ -q
+PYTHONPATH=. pytest tests/controllers/ -q
+```
+
+Зависимости сессии (`get_session`, `get_current_user_id`) переопределяются через `app.dependency_overrides` в `conftest.py` — реальная БД и аутентификация не требуются.
+
 ## Мета-информация
 
 ### Использование ИИ-агентов и GPT
@@ -205,3 +257,4 @@ erDiagram
 - Домашнее задание 4: Агент использовался для миграции агентской документации с `AGENTS.md` на `CLAUDE.md`, рефакторинга модели `AudioFile` (удалены поля статуса загрузки, добавлен `user_id`), устранения связанности `MLTask` с `Transaction` (вызовы `approve`/`cancel` вынесены в `MLTaskService`), изменения конвертаци аудио в спектрограмму
 - Домашнее задание 5: Агент использовался для анализа diff, обновления архитектурной документации (`docs/architecture.md`, `docs/stack.md`, `docs/drift-check.md`, `README.md`), формирования описания PR.
 - Домашнее задание 6: Агент использовался для написания React/TypeScript SPA (`frontend/`) и обновления архитектурной документации.
+- Домашнее задание 7: Агент использовался для написания полного тест-сьюта (`app/tests/`) — unit-тесты моделей, сервисов и интеграционные тесты контроллеров; рефакторинга контроллеров на DI-сессию (`Depends(get_session)`); обновления архитектурной документации (`CLAUDE.md`, `docs/`), включая удаление устаревшей иерархии CommonUser/AdminUser.

@@ -9,7 +9,7 @@ from music_genre_sommelier.models.audio_spectrogram import AudioSpectrogram
 from music_genre_sommelier.models.user import User
 from music_genre_sommelier.services.storage_service import StorageDirectory, StorageService
 from music_genre_sommelier.utils.auth import get_current_user_id
-from music_genre_sommelier.utils.database.db import engine
+from music_genre_sommelier.utils.database.db import get_session
 from music_genre_sommelier.utils.errors.errors import ForbiddenError, NotFoundError, ValidationError
 
 
@@ -42,34 +42,34 @@ async def upload_audio(
     user_id: int,
     file: UploadFile,
     current_user_id: int = Depends(get_current_user_id),
+    session: Session = Depends(get_session),
 ):
     _require_self(user_id, current_user_id)
-    with Session(engine) as session:
-        if not file.content_type or not file.content_type.startswith("audio/"):
-            raise ValidationError(
-                f"Invalid content type: {file.content_type!r}. Expected audio/*"
-            )
+    if not file.content_type or not file.content_type.startswith("audio/"):
+        raise ValidationError(
+            f"Invalid content type: {file.content_type!r}. Expected audio/*"
+        )
 
-        data = await file.read()
-        if not data:
-            raise ValidationError("File is empty")
+    data = await file.read()
+    if not data:
+        raise ValidationError("File is empty")
 
-        _get_user(session, user_id)
+    _get_user(session, user_id)
 
-        filename = f"{uuid.uuid4()}_{file.filename}"
-        storage = StorageService()
-        path = storage.store(data, StorageDirectory.AUDIOS, filename)
+    filename = f"{uuid.uuid4()}_{file.filename}"
+    storage = StorageService()
+    path = storage.store(data, StorageDirectory.AUDIOS, filename)
 
-        audio_file = AudioFile(user_id=user_id, file_path=str(path))
-        session.add(audio_file)
-        try:
-            session.commit()
-        except Exception:
-            storage.delete(str(path))
-            raise
-        session.refresh(audio_file)
+    audio_file = AudioFile(user_id=user_id, file_path=str(path))
+    session.add(audio_file)
+    try:
+        session.commit()
+    except Exception:
+        storage.delete(str(path))
+        raise
+    session.refresh(audio_file)
 
-        return JSONResponse(status_code=201, content=audio_file.model_dump(mode="json"))
+    return JSONResponse(status_code=201, content=audio_file.model_dump(mode="json"))
 
 
 @router.get(
@@ -84,14 +84,14 @@ async def upload_audio(
 def list_audios(
     user_id: int,
     current_user_id: int = Depends(get_current_user_id),
+    session: Session = Depends(get_session),
 ):
     _require_self(user_id, current_user_id)
-    with Session(engine) as session:
-        user = _get_user(session, user_id)
-        return JSONResponse(
-            status_code=200,
-            content=[af.model_dump(mode="json") for af in user.audio_files],
-        )
+    user = _get_user(session, user_id)
+    return JSONResponse(
+        status_code=200,
+        content=[af.model_dump(mode="json") for af in user.audio_files],
+    )
 
 
 @router.delete(
@@ -106,28 +106,28 @@ def list_audios(
 def delete_audio(
     audio_id: int,
     current_user_id: int = Depends(get_current_user_id),
+    session: Session = Depends(get_session),
 ):
-    with Session(engine) as session:
-        audio_file = session.exec(
-            select(AudioFile).where(AudioFile.id == audio_id)
-        ).first()
-        if audio_file is None:
-            raise NotFoundError(f"Audio file with id {audio_id} is not found")
+    audio_file = session.exec(
+        select(AudioFile).where(AudioFile.id == audio_id)
+    ).first()
+    if audio_file is None:
+        raise NotFoundError(f"Audio file with id {audio_id} is not found")
 
-        if audio_file.user_id != current_user_id:
-            raise ForbiddenError("Cannot delete another user's audio file")
+    if audio_file.user_id != current_user_id:
+        raise ForbiddenError("Cannot delete another user's audio file")
 
-        has_spectrograms = session.exec(
-            select(AudioSpectrogram).where(AudioSpectrogram.audio_file_id == audio_id)
-        ).first()
-        if has_spectrograms:
-            raise ValidationError("Audio file has associated tasks and cannot be deleted")
+    has_spectrograms = session.exec(
+        select(AudioSpectrogram).where(AudioSpectrogram.audio_file_id == audio_id)
+    ).first()
+    if has_spectrograms:
+        raise ValidationError("Audio file has associated tasks and cannot be deleted")
 
-        StorageService().delete(audio_file.file_path)
-        session.delete(audio_file)
-        session.commit()
+    StorageService().delete(audio_file.file_path)
+    session.delete(audio_file)
+    session.commit()
 
-        return Response(status_code=204)
+    return Response(status_code=204)
 
 
 @router.get(
@@ -141,14 +141,14 @@ def delete_audio(
 def stream_audio(
     audio_id: int,
     current_user_id: int = Depends(get_current_user_id),
+    session: Session = Depends(get_session),
 ):
-    with Session(engine) as session:
-        audio_file = session.exec(
-            select(AudioFile).where(AudioFile.id == audio_id)
-        ).first()
-        if audio_file is None:
-            raise NotFoundError(f"Audio file with id {audio_id} is not found")
+    audio_file = session.exec(
+        select(AudioFile).where(AudioFile.id == audio_id)
+    ).first()
+    if audio_file is None:
+        raise NotFoundError(f"Audio file with id {audio_id} is not found")
 
-        _require_self(audio_file.user_id, current_user_id)
+    _require_self(audio_file.user_id, current_user_id)
 
-        return FileResponse(audio_file.file_path)
+    return FileResponse(audio_file.file_path)

@@ -53,7 +53,32 @@ ty check app/
 
 ### Tests
 
-No test suite exists yet. When adding tests, place them in `tests/` mirroring package structure and run:
+Test structure mirrors source layout. Test file naming: `ENTITY.tests.py`.
+
+```
+app/tests/
+  models/             # Unit tests for domain models
+    audio_file.tests.py
+    audio_spectrogram.tests.py
+    ml_model.tests.py
+    ml_task.tests.py
+    spectrogram_file.tests.py
+    transaction.tests.py
+    user.tests.py
+  services/           # Unit tests for service orchestration
+    audio_spectrogram_service.tests.py
+    ml_task_service.tests.py
+    registration_service.tests.py
+    storage_service.tests.py
+  controllers/        # Tests for API endpoints
+    auth.tests.py
+    audio.tests.py
+    inference.tests.py
+    ml_models.tests.py
+    transactions.tests.py
+```
+
+Run tests:
 
 ```bash
 cd app && PYTHONPATH=. pytest -q
@@ -87,8 +112,6 @@ Python package **`music_genre_sommelier`** lives under **`app/music_genre_sommel
 | `MLTask` | `app/music_genre_sommelier/models/ml_task.py` |
 | `Transaction` | `app/music_genre_sommelier/models/transaction.py` |
 | `User` | `app/music_genre_sommelier/models/user.py` |
-| `CommonUser` | `app/music_genre_sommelier/models/common_user.py` |
-| `AdminUser` | `app/music_genre_sommelier/models/admin_user.py` |
 | Conversion orchestration | `app/music_genre_sommelier/services/audio_spectrogram_service.py` (`AudioSpectrogramService`) |
 | Inference orchestration | `app/music_genre_sommelier/services/ml_task_service.py` (`MLTaskService`) |
 | Registration / credentials helpers | `app/music_genre_sommelier/services/registration_service.py` (`RegistrationService`) |
@@ -128,7 +151,7 @@ Explicit ownership. Format: `[module] owns X / does not own Y`.
 
 - **`Transaction`** — owns ledger row state (`pending` → terminal statuses), **`approve`**, **`cancel`**, **`fail_insufficient_funds`**, instance **`check_funds()`** (may set **`fail_insufficient_funds`** when insufficient), and static **`get_balance(user_id)`**. **`MLTask`** references the ledger row via **`transaction_id`**; the **`transaction`** table has **no** `ml_task_id` column.
 
-- **`User` / `CommonUser` / `AdminUser`** — identity and **`get_balance()`** contract (`CommonUser` delegates to **`Transaction.get_balance`**; **`AdminUser`** returns **`float('inf')`** without DB); does not own sessions, OAuth, or payment providers.
+- **`User`** — identity and **`get_balance()`** contract; delegates to **`Transaction.get_balance`** for non-admin users; returns **`float('inf')`** without a DB query when `is_admin=True`; does not own sessions, OAuth, or payment providers.
 
 ### Settlement coupling (implementation)
 
@@ -200,13 +223,13 @@ For each interaction: **Input** — what is passed in; **Output** — what is re
 | **Output** | Terminal **`status`** (`success`, `fail_canceled`, `fail_insufficient_funds`). |
 | **Side-effect policy** | **Mutates:** **`status`** via **`_set_status`**. **`approve()`** is invoked from **`MLTaskService`** after a successful prediction path. **`cancel()`** is invoked from **`MLTaskService`** on generic failure. **`fail_insufficient_funds()`** is invoked from **`check_funds()`** when balance is insufficient. |
 
-### 8. `CommonUser.get_balance()` / `AdminUser.get_balance()`
+### 8. `User.get_balance()`
 
 | Aspect | Definition |
 |--------|------------|
-| **Input** | Implicit `user_id` for common users. |
-| **Output** | Balance or **`float('inf')`** for admins. |
-| **Side-effect policy** | **Read-only** for **`CommonUser`** (delegates to **`Transaction.get_balance`**). **`AdminUser`** does not query the DB. |
+| **Input** | Implicit `self.id` and `self.is_admin`. |
+| **Output** | Balance from **`Transaction.get_balance`** for non-admin users; **`float('inf')`** for admin users. |
+| **Side-effect policy** | **Read-only** for non-admin (delegates to **`Transaction.get_balance`**). Admin path does not query the DB. |
 
 ---
 
@@ -234,9 +257,9 @@ Named rules with concrete violation examples.
   `SpectrogramFile` remains a storage record only.  
   *Violation:* adding transform or validation methods beyond the ORM row.
 
-- **RULE-06 — AdminUser balance is a sentinel, not a skip**  
-  Do not branch on `isinstance(user, AdminUser)` at fund-check call sites to skip checks; **`AdminUser.get_balance()`** returns **`float('inf')`** so generic comparisons succeed.  
-  *Violation:* `if not isinstance(user, AdminUser) and not sufficient_funds:` at the expense of consistent APIs.
+- **RULE-06 — Admin balance is a sentinel, not a skip**  
+  Do not branch on `user.is_admin` at fund-check call sites to skip checks; **`User.get_balance()`** returns **`float('inf')`** when `is_admin=True` so generic comparisons succeed.  
+  *Violation:* `if not user.is_admin and not sufficient_funds:` at the expense of consistent APIs.
 
 - **RULE-07 — Conversion before task processing**  
   **`AudioSpectrogram`** for the job must be in a success state before **`MLTaskService.process`** runs.  
@@ -256,7 +279,7 @@ Named rules with concrete violation examples.
 ### Intentionally excluded
 
 - **`MLTaskService._perform_prediction`** internals (model weights, CV stack) beyond contract — integration tests when implemented.
-- **`AdminUser.get_balance()`** — trivial sentinel.
+- **`User.get_balance()`** admin path (`is_admin=True`) — trivial sentinel.
 - Heavy filesystem I/O — mock storage and paths in unit tests.
 
 ---
@@ -270,6 +293,6 @@ The repeatable procedure for verifying conformance lives in **`docs/drift-check.
 1. **`MLTaskService.process`** does not call **`AudioSpectrogramService.convert`** mid-flight; conversion is a prior step.
 2. **`approve()`** and **`cancel()`** are called explicitly by **`MLTaskService`**, not from within **`MLTask.record_*`** methods. **`approve()`** is not reached except after a successful prediction path.
 3. **`SpectrogramFile`** has no domain methods beyond the SQLModel definition.
-4. **`AdminUser.get_balance()`** returns **`float('inf')`** without a DB query.
+4. **`User.get_balance()`** returns **`float('inf')`** without a DB query when `is_admin=True`.
 
 Additional checks are listed in **`docs/drift-check.md`**.
