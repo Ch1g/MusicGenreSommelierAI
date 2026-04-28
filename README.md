@@ -73,16 +73,6 @@ python -c "import secrets; print(secrets.token_hex(32))"
 docker compose -f docker-compose.yml -f docker-compose.local.yml up
 ```
 
-`docker-compose.local.yml` не входит в репозиторий (в `.gitignore`). Создать в корне:
-
-```yaml
-services:
-  web-proxy:
-    ports:
-      - "80:80"
-      - "443:443"
-```
-
 Приложение доступно на `http://localhost`.
 
 ### Удалённый сервер (music.herrsmirnov.com)
@@ -91,7 +81,7 @@ services:
 docker compose -f docker-compose.yml -f docker-compose.remote.yml up -d
 ```
 
-`docker-compose.remote.yml` входит в репозиторий и поднимает `web-proxy` на портах `8080`/`8443`.
+`web-proxy` поднимается на портах `8080`/`8443` хоста.
 
 Хостовой nginx проксирует входящий трафик в контейнер. Конфиг (`/etc/nginx/sites-available/music.herrsmirnov.com`):
 
