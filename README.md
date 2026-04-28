@@ -76,6 +76,59 @@ docker compose up app      # только app (без worker и frontend)
 
 Приложение доступно на `http://localhost`.
 
+### Запуск на удалённом сервере (порт 80 занят)
+
+Если на сервере уже запущен nginx, создать `docker-compose.override.yml` в корне репозитория:
+
+```yaml
+services:
+  web-proxy:
+    ports:
+      - "8080:80"
+```
+
+Docker Compose подхватит override автоматически — `web-proxy` поднимется на порту `8080`.
+
+Добавить сайт в конфиг хостового nginx (`/etc/nginx/sites-available/music.herrsmirnov.com`):
+
+```nginx
+server {
+    listen 80;
+    server_name music.herrsmirnov.com;
+    return 301 https://$host$request_uri;
+}
+
+server {
+    listen 443 ssl;
+    server_name music.herrsmirnov.com;
+
+    ssl_certificate     /etc/letsencrypt/live/music.herrsmirnov.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/music.herrsmirnov.com/privkey.pem;
+    ssl_protocols       TLSv1.2 TLSv1.3;
+    ssl_ciphers         HIGH:!aNULL:!MD5;
+
+    client_max_body_size 50M;
+
+    location / {
+        proxy_pass http://127.0.0.1:8080;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto https;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+    }
+}
+```
+
+Активировать и получить TLS-сертификат:
+
+```bash
+sudo ln -s /etc/nginx/sites-available/music.herrsmirnov.com /etc/nginx/sites-enabled/
+sudo nginx -t && sudo systemctl reload nginx
+sudo certbot --nginx -d music.herrsmirnov.com
+```
+
 ## Сущности
 
 ### Структура классов
