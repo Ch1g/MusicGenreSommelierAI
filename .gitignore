@@ -16,9 +16,6 @@ app/storage
 .db.env
 .app.env
 
-# Local Docker Compose overrides
-docker-compose.local.yml
-
 # Frontend build artifacts
 frontend/node_modules/
 frontend/dist/
