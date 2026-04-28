@@ -67,29 +67,33 @@ cp .app.env.example .app.env
 python -c "import secrets; print(secrets.token_hex(32))"
 ```
 
-### Запуск через Docker
+### Локально
 
 ```bash
-docker compose up          # все сервисы: nginx, app, worker, RabbitMQ, PostgreSQL
-docker compose up app      # только app (без worker и frontend)
+docker compose -f docker-compose.yml -f docker-compose.local.yml up
 ```
 
-Приложение доступно на `http://localhost`.
-
-### Запуск на удалённом сервере (порт 80 занят)
-
-Если на сервере уже запущен nginx, создать `docker-compose.override.yml` в корне репозитория:
+`docker-compose.local.yml` не входит в репозиторий (в `.gitignore`). Создать в корне:
 
 ```yaml
 services:
   web-proxy:
     ports:
-      - "8080:80"
+      - "80:80"
+      - "443:443"
 ```
 
-Docker Compose подхватит override автоматически — `web-proxy` поднимется на порту `8080`.
+Приложение доступно на `http://localhost`.
 
-Добавить сайт в конфиг хостового nginx (`/etc/nginx/sites-available/music.herrsmirnov.com`):
+### Удалённый сервер (music.herrsmirnov.com)
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.remote.yml up -d
+```
+
+`docker-compose.remote.yml` входит в репозиторий и поднимает `web-proxy` на портах `8080`/`8443`.
+
+Хостовой nginx проксирует входящий трафик в контейнер. Конфиг (`/etc/nginx/sites-available/music.herrsmirnov.com`):
 
 ```nginx
 server {
@@ -121,7 +125,7 @@ server {
 }
 ```
 
-Активировать и получить TLS-сертификат:
+Активировать сайт и получить TLS-сертификат:
 
 ```bash
 sudo ln -s /etc/nginx/sites-available/music.herrsmirnov.com /etc/nginx/sites-enabled/
