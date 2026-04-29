@@ -2,6 +2,6 @@ services:
   web-proxy:
     ports:
       - "8080:80"
-      - "8443:443"
+      - "8444:443"
     volumes:
       - /etc/letsencrypt:/etc/letsencrypt:ro
