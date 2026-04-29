@@ -81,15 +81,15 @@ docker compose -f docker-compose.yml -f docker-compose.local.yml up
 docker compose -f docker-compose.yml -f docker-compose.remote.yml up -d
 ```
 
-`web-proxy` поднимается на портах `8080`/`8443` хоста.
+`docker-compose.remote.yml` переопределяет два сервиса:
+- **`web-proxy`** — пробрасывает порт `8080:80` на хост.
+- **`frontend`** — собирается из `frontend/Dockerfile.prod` (многоэтапная сборка: `npm run build` → nginx); конфиг nginx монтируется из `frontend/nginx.conf` (слушает порт **8080**, SPA-fallback через `try_files`). Dev-тома не монтируются.
 
-Хостовой nginx проксирует входящий трафик в контейнер. Конфиг (`/etc/nginx/sites-available/music.herrsmirnov.com`):
+Хостовой nginx завершает TLS и проксирует трафик в контейнер. Конфиг (`/etc/nginx/sites-available/music.herrsmirnov.com`), управляется Certbot:
 
 ```nginx
-server {
-    listen 80;
-    server_name music.herrsmirnov.com;
-    return 301 https://$host$request_uri;
+upstream music-upstream {
+    server 127.0.0.1:8080;
 }
 
 server {
@@ -98,20 +98,33 @@ server {
 
     ssl_certificate     /etc/letsencrypt/live/music.herrsmirnov.com/fullchain.pem;
     ssl_certificate_key /etc/letsencrypt/live/music.herrsmirnov.com/privkey.pem;
-    ssl_protocols       TLSv1.2 TLSv1.3;
-    ssl_ciphers         HIGH:!aNULL:!MD5;
+    include /etc/letsencrypt/options-ssl-nginx.conf;
+    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
 
-    client_max_body_size 50M;
-
-    location / {
-        proxy_pass http://127.0.0.1:8080;
+    location /api/ {
+        proxy_pass http://music-upstream;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto https;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    location / {
+        proxy_pass http://music-upstream;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection "upgrade";
     }
+}
+
+server {
+    listen 80;
+    server_name music.herrsmirnov.com;
+    if ($host = music.herrsmirnov.com) {
+        return 301 https://$host$request_uri;
+    }
+    return 404;
 }
 ```
 
@@ -305,3 +318,4 @@ PYTHONPATH=. pytest tests/controllers/ -q
 - Домашнее задание 5: Агент использовался для анализа diff, обновления архитектурной документации (`docs/architecture.md`, `docs/stack.md`, `docs/drift-check.md`, `README.md`), формирования описания PR.
 - Домашнее задание 6: Агент использовался для написания React/TypeScript SPA (`frontend/`) и обновления архитектурной документации.
 - Домашнее задание 7: Агент использовался для написания полного тест-сьюта (`app/tests/`) — unit-тесты моделей, сервисов и интеграционные тесты контроллеров; рефакторинга контроллеров на DI-сессию (`Depends(get_session)`); обновления архитектурной документации (`CLAUDE.md`, `docs/`), включая удаление устаревшей иерархии CommonUser/AdminUser.
+- Домашнее задание 8: Агент использовался для настройки удалённого деплоя — добавление продакшн-сборки фронтенда (`frontend/Dockerfile.prod`, многоэтапная сборка + nginx), конфига nginx для SPA (`frontend/nginx.conf`), переопределения сервиса `frontend` в `docker-compose.remote.yml`; обновления документации по remote-setup.
